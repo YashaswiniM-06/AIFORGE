@@ -69,19 +69,20 @@ function facePins(review,zone,selectedFindingId){
 }
 // Render a rectangular evidence-box overlay on the 3D face for the selected finding.
 // This mirrors the 2D workbench-region boxes so reviewers see the same boundary in 3D.
-function faceEvidenceBoxes(review,zone,selectedFindingId){
+function faceEvidenceBoxes(review,zone,selectedFindingId,activeEvidenceIndex=0){
   if(!zone?.box||!selectedFindingId)return '';
   const [x0,y0,x1,y1]=zone.box,w=x1-x0,h=y1-y0,boxes=[];
   const finding=review.findings?.find(f=>f.id===selectedFindingId);
   if(!finding)return '';
-  for(const item of finding.evidence||[]){
-    if(item.role!=='artwork'||item.page!==zone.page||!Array.isArray(item.box))continue;
+  const artworkEvidence=(finding.evidence||[]).map((item,index)=>({item,index})).filter(({item})=>item.role==='artwork'&&item.page===zone.page&&Array.isArray(item.box));
+  for(const {item,index} of artworkEvidence){
     const [bx0,by0,bx1,by1]=item.box;
     const cx=(bx0+bx1)/2,cy=(by0+by1)/2;
     if(cx<x0||cx>x1||cy<y0||cy>y1)continue;
-    const lp=((bx0-x0)/w*100).toFixed(2),tp=((by0-y0)/h*100).toFixed(2);
-    const wp=((bx1-bx0)/w*100).toFixed(2),hp=((by1-by0)/h*100).toFixed(2);
-    boxes.push(`<div class="carton-evidence-box ${esc(finding.status)}" aria-hidden="true" style="left:${lp}%;top:${tp}%;width:${wp}%;height:${hp}%"><span>${esc(finding.status==='match'?'✓':finding.status==='issue'?'!':'?')}</span></div>`);
+    const lp=Math.max(0,((bx0-x0)/w*100)).toFixed(2),tp=Math.max(0,((by0-y0)/h*100)).toFixed(2);
+    const wp=Math.min(100-lp,((bx1-bx0)/w*100)).toFixed(2),hp=Math.min(100-tp,((by1-by0)/h*100)).toFixed(2);
+    const isSelected=index===activeEvidenceIndex;
+    boxes.push(`<div class="carton-evidence-box ${esc(finding.status)} ${isSelected?'selected':''}" aria-hidden="true" style="left:${lp}%;top:${tp}%;width:${wp}%;height:${hp}%"><span>${isSelected?'Selected':esc(finding.status==='match'?'✓':finding.status==='issue'?'!':'Evidence')}</span></div>`);
   }
   return boxes.join('');
 }
@@ -103,26 +104,29 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   const pageOptions=[...new Set([...(doc.pages||[]).map(p=>p.number),...artworkEvidence.map(({item})=>item.page)])].sort((a,b)=>a-b);
   const page=doc.pages.find(p=>p.number===Number(pageNumber))||doc.pages.find(p=>p.number===selected?.item.page)||doc.pages[0];
   const zones=review.options?.panelZones||{};
+  const previewZones=sourcePreviewZones(review);
+  const visualZones={...previewZones,...zones};
   let contextZone=null,selectedPanelFound=false;
   if(selected?.item.box){
     const [x0,y0,x1,y1]=selected.item.box,center=[(x0+x1)/2,(y0+y1)/2];
-    contextZone=Object.entries(zones).find(([,zone])=>zone.page===selected.item.page&&zone.box&&center[0]>=zone.box[0]&&center[0]<=zone.box[2]&&center[1]>=zone.box[1]&&center[1]<=zone.box[3]);
+    contextZone=Object.entries(visualZones).find(([,zone])=>zone.page===selected.item.page&&zone.box&&center[0]>=zone.box[0]&&center[0]<=zone.box[2]&&center[1]>=zone.box[1]&&center[1]<=zone.box[3]);
     selectedPanelFound=Boolean(contextZone);
   }
-  if(!contextZone)contextZone=Object.entries(zones).find(([name])=>name==='front')||Object.entries(zones)[0]||null;
+  if(!contextZone)contextZone=Object.entries(visualZones).find(([name])=>name==='front')||Object.entries(visualZones)[0]||null;
   let visual='';
   if(mode==='3d'){
     const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
-    const previewZones=sourcePreviewZones(review);
-    const visualZones={...previewZones,...zones};
     const samplePreview=Object.keys(previewZones).some(name=>!zones[name]?.box);
-    const dims=foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:-28,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
+    const targetAngles={front:0,right:-90,back:-180,left:90};
+    const defaultAngle=selectedPanelFound&&contextZone?.[0] in targetAngles?targetAngles[contextZone[0]]:-28;
+    const dims=foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:defaultAngle,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
     const faceClasses={front:'carton-front',back:'carton-back',left:'carton-left',right:'carton-right',top:'carton-top',bottom:'carton-bottom'};
     const faces=Object.entries(faceClasses).map(([name,css])=>{
       const zone=visualZones[name]?.box?{...visualZones[name],name}:null;
       const reviewerMapped=Boolean(zones[name]?.box);
       const faceState=reviewerMapped?'mapped':samplePreview&&zone?'preview-only':'unmapped';
-      return `<div class="carton-face ${css} ${faceState}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${zone?faceEvidenceBoxes(review,zone,finding?.id):''}</div>`;
+      const isFindingFace=selectedPanelFound&&contextZone&&contextZone[0]===name;
+      return `<div class="carton-face ${css} ${faceState} ${isFindingFace?'face-focused':''}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${zone?faceEvidenceBoxes(review,zone,finding?.id,activeEvidenceIndex):''}</div>`;
     }).join('');
 
     const contextName=contextZone?(faceLabels[contextZone[0]]||contextZone[0]):'';
