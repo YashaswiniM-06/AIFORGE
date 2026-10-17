@@ -11,6 +11,7 @@
 PackSignal connects approved product facts, supplied rules, and finished artwork—then shows a reviewer exactly what matches, what conflicts, and what still needs a person.
 
 <p>
+  <a href="https://packsignal.onrender.com"><strong>🌐 Live Demo: packsignal.onrender.com</strong></a> ·
   <a href="#judge-demo">▶ See the demo path</a> ·
   <a href="submission/APPROACH.md">Why this approach</a> ·
   <a href="submission/ARCHITECTURE.md">Architecture</a> ·
