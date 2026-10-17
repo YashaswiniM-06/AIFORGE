@@ -77,6 +77,15 @@
 .carton-stage.sample-artwork-preview .carton-location{font-size:9px;letter-spacing:.045em;color:#748175}
 .carton-pin.selected{animation:carton-pin-focus 1.8s ease-in-out infinite}
 @keyframes carton-pin-focus{0%,100%{box-shadow:0 0 0 2px #fff,0 1px 5px #13261a77}50%{box-shadow:0 0 0 6px #ffffff80,0 1px 8px #13261a55}}
+/* Rectangular evidence box on 3D faces — mirrors the 2D workbench-region style */
+.carton-evidence-box{position:absolute;z-index:4;border:2px solid #ed8a79;background:#ed8a7930;border-radius:2px;pointer-events:none}
+.carton-evidence-box.review,.carton-evidence-box.unable{border-color:#e5be6a;background:#e5be6a28}
+.carton-evidence-box.match{border-color:#91b28a;background:#91b28a20}
+.carton-evidence-box span{position:absolute;top:-16px;left:-2px;white-space:nowrap;background:#e8462f;color:#fff;border-radius:3px;padding:2px 5px;font:700 8px ui-monospace,monospace}
+.carton-evidence-box.review span,.carton-evidence-box.unable span{background:#c49530}
+.carton-evidence-box.match span{background:#4d8040}
+@keyframes evidence-box-pulse{0%,100%{opacity:1}50%{opacity:.6}}
+.carton-evidence-box{animation:evidence-box-pulse 2s ease-in-out infinite}
 @media(max-width:1180px){.carton-map-prompt{align-items:flex-start;flex-direction:column;margin-bottom:14px}.carton-map-prompt button{width:100%}}
 @media(max-width:760px){.carton-stage{min-height:465px}.carton-scene,.carton-stage.unmapped-preview .carton-scene{height:365px}.carton-map-prompt{margin-bottom:12px}}
 @media(prefers-reduced-motion:reduce){.carton-orbit,.carton-pin.selected{animation:none!important}}
@@ -335,7 +344,7 @@
 
 /* Make the selected mapping target visible before a reviewer draws or saves. */
 .zone-face-preview{display:flex;align-items:center;gap:24px;height:244px;overflow:auto;margin:16px 0;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--white);color:var(--ink)}
-.zone-preview-crop{position:relative;flex:none;max-width:45%;max-height:200px;overflow:hidden;background:#fff;border-radius:5px;box-shadow:0 7px 22px #10271f22}
+.zone-preview-crop{position:relative;flex:none;overflow:hidden;background:#fff;border-radius:5px;box-shadow:0 7px 22px #10271f22}
 .zone-preview-crop img{position:absolute;max-width:none;display:block;user-select:none;pointer-events:none}
 .zone-preview-copy{min-width:0;max-width:430px}
 .zone-preview-copy strong,.zone-preview-empty strong{display:block;font-size:17px;margin-bottom:7px}

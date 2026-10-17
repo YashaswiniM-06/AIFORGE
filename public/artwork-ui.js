@@ -67,6 +67,24 @@ function facePins(review,zone,selectedFindingId){
   }
   return pins.join('');
 }
+// Render a rectangular evidence-box overlay on the 3D face for the selected finding.
+// This mirrors the 2D workbench-region boxes so reviewers see the same boundary in 3D.
+function faceEvidenceBoxes(review,zone,selectedFindingId){
+  if(!zone?.box||!selectedFindingId)return '';
+  const [x0,y0,x1,y1]=zone.box,w=x1-x0,h=y1-y0,boxes=[];
+  const finding=review.findings?.find(f=>f.id===selectedFindingId);
+  if(!finding)return '';
+  for(const item of finding.evidence||[]){
+    if(item.role!=='artwork'||item.page!==zone.page||!Array.isArray(item.box))continue;
+    const [bx0,by0,bx1,by1]=item.box;
+    const cx=(bx0+bx1)/2,cy=(by0+by1)/2;
+    if(cx<x0||cx>x1||cy<y0||cy>y1)continue;
+    const lp=((bx0-x0)/w*100).toFixed(2),tp=((by0-y0)/h*100).toFixed(2);
+    const wp=((bx1-bx0)/w*100).toFixed(2),hp=((by1-by0)/h*100).toFixed(2);
+    boxes.push(`<div class="carton-evidence-box ${esc(finding.status)}" aria-hidden="true" style="left:${lp}%;top:${tp}%;width:${wp}%;height:${hp}%"><span>${esc(finding.status==='match'?'✓':finding.status==='issue'?'!':'?')}</span></div>`);
+  }
+  return boxes.join('');
+}
 function foldedDimensions(review,zones){
   const front=zones.front,side=zones.right||zones.left,frontPage=front&&artwork(review)?.pages?.find(p=>p.number===front.page),sidePage=side&&artwork(review)?.pages?.find(p=>p.number===side.page);
   if(!front?.box||!frontPage)return {width:198,height:260,depth:58,measured:false};
@@ -104,8 +122,9 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
       const zone=visualZones[name]?.box?{...visualZones[name],name}:null;
       const reviewerMapped=Boolean(zones[name]?.box);
       const faceState=reviewerMapped?'mapped':samplePreview&&zone?'preview-only':'unmapped';
-      return `<div class="carton-face ${css} ${faceState}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}</div>`;
+      return `<div class="carton-face ${css} ${faceState}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${zone?faceEvidenceBoxes(review,zone,finding?.id):''}</div>`;
     }).join('');
+
     const contextName=contextZone?(faceLabels[contextZone[0]]||contextZone[0]):'';
     const location=samplePreview?'Organizer artwork · illustrative fold':contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
     const prompt=!mappedCount&&!samplePreview

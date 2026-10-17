@@ -24,9 +24,14 @@ export function selectedFacePreview(review, zones, face, draft = false) {
   const [x0,y0,x1,y1]=zone.box, width=x1-x0, height=y1-y0;
   if(width<=0||height<=0) return `<div class="zone-preview-empty"><strong>${escape(label)}</strong><span>Drag to define the face crop…</span></div>`;
   const ratio=width*(page.width||1)/(height*(page.height||1));
+  // Clamp preview height to 180px and compute width from ratio
+  const previewH=180;
+  const previewW=Math.min(Math.round(previewH*ratio), 300);
   const caption=mapped?(draft?'Unsaved face crop':'Saved face crop'):'Organizer preview · not a saved map';
-  return `<div class="zone-preview-crop" style="aspect-ratio:${ratio};width:min(100%,${Math.round(200*ratio)}px)"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${mapped?'This crop is the artwork used on this carton face.':'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.'}</p></div>`;
+  // Use CSS variables so the absolute img is reliably clipped inside the container
+  return `<div class="zone-preview-crop" style="width:${previewW}px;height:${previewH}px;flex:none"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${mapped?'This crop is the artwork used on this carton face.':'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.'}</p></div>`;
 }
+
 
 function locatedEvidence(finding) {
   return finding?.evidence?.find(item => item.role === 'artwork' && Number.isInteger(item.page) && Array.isArray(item.box));
