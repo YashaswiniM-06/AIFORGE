@@ -163,8 +163,14 @@
   flex: none;
   transform-style: preserve-3d;
   transform-origin: 50% 50%;
-  transition: transform .55s cubic-bezier(.22,.68,.16,1);
+  transition: transform .36s cubic-bezier(.2,.8,.2,1);
   will-change: transform;
+  backface-visibility: hidden;
+}
+.carton-studio .carton-scene.dragging .carton-model,
+.carton-scene.dragging .carton-model,
+.carton-stage.is-playing .carton-model {
+  transition: none !important;
 }
 .carton-studio .carton-face {
   /* All six faces rotate about their own centre; an inherited bottom origin
