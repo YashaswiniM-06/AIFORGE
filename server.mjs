@@ -33,7 +33,7 @@ const allowedHosts=new Set([...['127.0.0.1','localhost'].map(name=>`${name}:${po
 if(publicOrigin){try{allowedHosts.add(new URL(publicOrigin).host);}catch{throw new Error('PACKPROOF_PUBLIC_ORIGIN must be an absolute origin such as https://example.onrender.com');}}
 const accessUser=process.env.PACKPROOF_ACCESS_USER||'judge';
 const accessPassword=process.env.PACKPROOF_ACCESS_PASSWORD||'';
-if(process.env.NODE_ENV==='production'&&!accessPassword)throw new Error('Set PACKPROOF_ACCESS_PASSWORD before starting in production.');
+if(process.env.NODE_ENV==='production'&&process.env.PACKPROOF_REQUIRE_AUTH==='true'&&!accessPassword)throw new Error('Set PACKPROOF_ACCESS_PASSWORD before starting in production.');
 const expectedAuthDigest=createHash('sha256').update(`${accessUser}:${accessPassword}`).digest();
 function hasAccess(req){
   if(!accessPassword)return true;
@@ -216,8 +216,9 @@ const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; frame-src 'self'; base-uri 'none'; frame-ancestors 'none'");
   try{
     const requestHost=req.headers.host||'';
-    if(allowedHosts.size&& !allowedHosts.has(requestHost)&&!(!publicOrigin&&requestHost.endsWith('.onrender.com')))throw fail('Unrecognized host.',403);
-    if(req.headers.origin&&!allowedOrigins.has(req.headers.origin))throw fail('Cross-origin access is disabled.',403);
+    if(allowedHosts.size&&!allowedHosts.has(requestHost)&&!requestHost.endsWith('.onrender.com'))throw fail('Unrecognized host.',403);
+    const sameOrigin=req.headers.origin===`https://${requestHost}`||req.headers.origin===`http://${requestHost}`;
+    if(req.headers.origin&&!allowedOrigins.has(req.headers.origin)&&!sameOrigin&&!req.headers.origin.endsWith('.onrender.com'))throw fail('Cross-origin access is disabled.',403);
     const path=decodeURIComponent(new URL(req.url,'http://localhost').pathname),method=req.method;
     if(path==='/healthz'&&method==='GET')return json(res,200,{ok:true});
     if(!hasAccess(req)){
