@@ -324,3 +324,18 @@
 @keyframes proof-desk-enter{from{opacity:.5;translate:0 5px}to{opacity:1;translate:0 0}}
 @media(max-width:760px){.workbench-art-frame{height:clamp(310px,52vh,500px)}.artwork-navigation{gap:7px;padding:8px}.artwork-pan-buttons{margin-left:0}.artwork-view-actions{margin-left:auto}.artwork-navigation .hud-zoom{width:auto}.workbench-diff-card{width:190px;max-width:60%}.proof-spotlight-frame{height:42vh;min-height:275px}}
 @media(prefers-reduced-motion:reduce){.workbench-art-frame,.proof-spotlight-frame{animation:none}.artwork-gesture-hint,.artwork-navigation button{transition:none}}
+
+/* Make the selected mapping target visible before a reviewer draws or saves. */
+.zone-face-preview{display:flex;align-items:center;gap:24px;height:244px;overflow:auto;margin:16px 0;padding:20px;border:1px solid var(--line);border-radius:12px;background:var(--white);color:var(--ink)}
+.zone-preview-crop{position:relative;flex:none;max-width:45%;max-height:200px;overflow:hidden;background:#fff;border-radius:5px;box-shadow:0 7px 22px #10271f22}
+.zone-preview-crop img{position:absolute;max-width:none;display:block;user-select:none;pointer-events:none}
+.zone-preview-copy{min-width:0;max-width:430px}
+.zone-preview-copy strong,.zone-preview-empty strong{display:block;font-size:17px;margin-bottom:7px}
+.zone-preview-copy span{font-size:11px;color:var(--muted);display:block}
+.zone-preview-copy p,.zone-preview-empty span{font-size:12px;line-height:1.6;display:block}
+.zone-preview-empty{padding:12px;max-width:470px}
+.zone-stage .panel-zone.muted-face{opacity:.3}
+.zone-stage .panel-zone.selected-face{opacity:1;border:3px solid #e2b653;background:#e2b65320;box-shadow:0 0 0 2px #13271c80;z-index:2}
+.zone-stage .panel-zone.selected-face span{background:#745719;color:#fff;transform:none;font-size:10px}
+.next-question{color:#243d31}
+@media(max-width:640px){.zone-face-preview{gap:14px;padding:14px}.zone-preview-copy strong{font-size:14px}}

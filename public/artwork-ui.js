@@ -46,6 +46,10 @@ const organizerVisualZones={
   front:{page:1,box:[.528,.375,.82,.786]},
   right:{page:1,box:[.834,.375,.993,.786]},
 };
+// Preview crops never become evidence geometry without an explicit saved map.
+export function sourcePreviewZones(review){
+  return review.sample==='organizer'?structuredClone(organizerVisualZones):{};
+}
 function faceTexture(review,zone){
   const doc=artwork(review),page=doc?.pages?.find(p=>p.number===zone.page);if(!page||!zone.box)return '<span class="carton-unmapped">Panel not mapped</span>';
   const [x0,y0,x1,y1]=zone.box,w=Math.max(.001,x1-x0),h=Math.max(.001,y1-y0);
@@ -91,8 +95,9 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   let visual='';
   if(mode==='3d'){
     const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
-    const samplePreview=review.sample==='organizer'&&mappedCount===0;
-    const visualZones=samplePreview?organizerVisualZones:zones;
+    const previewZones=sourcePreviewZones(review);
+    const visualZones={...previewZones,...zones};
+    const samplePreview=Object.keys(previewZones).some(name=>!zones[name]?.box);
     const dims=foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:-28,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
     const faceClasses={front:'carton-front',back:'carton-back',left:'carton-left',right:'carton-right',top:'carton-top',bottom:'carton-bottom'};
     const faces=Object.entries(faceClasses).map(([name,css])=>{

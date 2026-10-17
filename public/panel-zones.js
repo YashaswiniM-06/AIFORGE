@@ -1,3 +1,5 @@
+import { sourcePreviewZones } from './artwork-ui.js';
+
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 const faces = [
   ['front', 'Front panel'], ['back', 'Back panel'], ['left', 'Left side'],
@@ -8,10 +10,22 @@ function artwork(review) {
   return review.documents?.find(document => document.role === 'artwork');
 }
 
-function zoneBox(zone, page) {
+function zoneBox(zone, page, selectedFace) {
   if (!zone?.box || zone.page !== page) return '';
   const [x0, y0, x1, y1] = zone.box;
-  return `<div class="panel-zone ${escape(zone.name)}" style="left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%"><span>${escape(zone.name)} face</span></div>`;
+  return `<div class="panel-zone ${escape(zone.name)} ${zone.name===selectedFace?'selected-face':'muted-face'}" style="left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%"><span>${escape(zone.name)} face</span></div>`;
+}
+
+export function selectedFacePreview(review, zones, face, draft = false) {
+  const mapped=zones[face], zone=mapped||sourcePreviewZones(review)[face];
+  const page=artwork(review)?.pages.find(item=>item.number===zone?.page);
+  const label=faces.find(([name])=>name===face)?.[1]||face;
+  if(!page||!zone?.box) return `<div class="zone-preview-empty"><strong>${escape(label)}</strong><span>No artwork mapped to this face yet. Draw its rectangle on the full sheet below.</span></div>`;
+  const [x0,y0,x1,y1]=zone.box, width=x1-x0, height=y1-y0;
+  if(width<=0||height<=0) return `<div class="zone-preview-empty"><strong>${escape(label)}</strong><span>Drag to define the face crop…</span></div>`;
+  const ratio=width*(page.width||1)/(height*(page.height||1));
+  const caption=mapped?(draft?'Unsaved face crop':'Saved face crop'):'Organizer preview · not a saved map';
+  return `<div class="zone-preview-crop" style="aspect-ratio:${ratio};width:min(100%,${Math.round(200*ratio)}px)"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${mapped?'This crop is the artwork used on this carton face.':'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.'}</p></div>`;
 }
 
 function locatedEvidence(finding) {
@@ -55,16 +69,17 @@ export function panelZoneMapper(review) {
     <h3>Map package faces</h3>
     <p class="subtle">${escape(zoneNote)}</p>
     <div class="zone-controls">
-      <label>Face to map<select data-zone-name>${faces.map(([value, label]) => `<option value="${value}" ${value === 'front' ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+      <label>Preview / map face<select data-zone-name>${faces.map(([value, label]) => `<option value="${value}" ${value === 'front' ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
       <label>Artwork page<select data-zone-page>${artDocument.pages.map(item => `<option value="${item.number}">Page ${item.number}</option>`).join('')}</select></label>
       <button type="button" class="secondary" data-zone-clear>Clear this face</button>
     </div>
+    <div class="zone-face-preview" data-zone-face-preview aria-live="polite">${selectedFacePreview(review, review.options?.panelZones || {}, 'front')}</div>
     <div class="zone-impact" data-zone-impact aria-live="polite"></div>
     <details class="zone-screening"><summary>Optional text-height screening</summary><p class="subtle">This adds an approximate human-review finding when PDF text height can be measured. It is not a legal minimum.</p><label>Screening value (mm)<input type="number" data-legibility-threshold min="0.1" max="10" step="0.1" value="${Number(review.options?.legibilityThresholdMm) || 1.6}"></label></details>
     <input type="hidden" name="panelZones" data-panel-zones-value value="${escape(JSON.stringify(review.options?.panelZones || {}))}">
     <div class="zone-stage" data-zone-stage aria-label="Drag a rectangle around the selected package face on the artwork page">
       <img data-zone-image src="/api/reviews/${escape(review.id)}/images/${escape(page.image)}" alt="Artwork page ${page.number} for package face mapping">
-      <div data-zone-overlay>${zones.map(zone => zoneBox(zone, page.number)).join('')}</div>
+      <div data-zone-overlay>${zones.map(zone => zoneBox(zone, page.number, 'front')).join('')}</div>
     </div>
     <p class="subtle" data-zone-status></p>
   </section>`;
@@ -100,6 +115,8 @@ export function mountPanelZoneMapper(container, review) {
   let zones = {};
   try { zones = JSON.parse(zoneValue.value || '{}'); } catch { zones = {}; }
   let start = null;
+  const dirtyFaces = new Set();
+  const facePreview = root.querySelector('[data-zone-face-preview]');
   const selected = () => faceInput.value;
   const selectedPage = () => Number(pageInput.value);
   const currentPage = () => artDocument.pages.find(page => page.number === selectedPage()) || artDocument.pages[0];
@@ -112,11 +129,12 @@ export function mountPanelZoneMapper(container, review) {
     const page = currentPage();
     image.src = `/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}`;
     image.alt = `Artwork page ${page.number} for package face mapping`;
-    overlay.innerHTML = Object.entries(zones).map(([name, zone]) => zoneBox({ name, ...zone }, page.number)).join('');
+    overlay.innerHTML = Object.entries(zones).map(([name, zone]) => zoneBox({ name, ...zone }, page.number, selected())).join('');
     const mapped = zones[selected()]?.page === page.number;
     status.textContent = mapped
       ? `${selected()} face mapped on page ${page.number}. Save to recalculate the supplied checklist geometry.`
       : `${selected()} face is not mapped on page ${page.number}. Drag over its artwork area to map it.`;
+    facePreview.innerHTML = selectedFacePreview(review, zones, selected(), dirtyFaces.has(selected()));
     updateImpact();
   };
   const point = event => {
@@ -132,6 +150,7 @@ export function mountPanelZoneMapper(container, review) {
     node.style.left = `${box[0] * 100}%`; node.style.top = `${box[1] * 100}%`;
     node.style.width = `${(box[2] - box[0]) * 100}%`; node.style.height = `${(box[3] - box[1]) * 100}%`;
     node.innerHTML = `<span>${escape(selected())} face</span>`; overlay.append(node);
+    facePreview.innerHTML = selectedFacePreview(review, {...zones,[selected()]:{page:selectedPage(),box}}, selected(), true);
     updateImpact(box);
   };
   stage.addEventListener('pointerdown', event => {
@@ -143,12 +162,18 @@ export function mountPanelZoneMapper(container, review) {
     if (!start) return;
     const end = point(event); const box = [Math.min(start[0], end[0]), Math.min(start[1], end[1]), Math.max(start[0], end[0]), Math.max(start[1], end[1])];
     start = null; overlay.querySelectorAll('.panel-zone.preview').forEach(node => node.remove());
-    if ((box[2] - box[0]) < 0.03 || (box[3] - box[1]) < 0.03) { status.textContent = 'Draw a larger rectangle to map this face.'; updateImpact(); return; }
-    zones[selected()] = { page: selectedPage(), box }; persist(); redraw();
+    if ((box[2] - box[0]) < 0.03 || (box[3] - box[1]) < 0.03) { redraw(); status.textContent = 'Draw a larger rectangle to map this face.'; return; }
+    zones[selected()] = { page: selectedPage(), box }; dirtyFaces.add(selected()); persist(); redraw();
   });
   stage.addEventListener('pointercancel', () => { start = null; overlay.querySelectorAll('.panel-zone.preview').forEach(node => node.remove()); redraw(); });
-  faceInput.addEventListener('change', redraw);
+  faceInput.addEventListener('change', () => {
+    start = null;
+    const zone = zones[selected()] || sourcePreviewZones(review)[selected()];
+    if(zone && artDocument.pages.some(page=>page.number===zone.page)) pageInput.value=String(zone.page);
+    redraw();
+  });
   pageInput.addEventListener('change', redraw);
-  root.querySelector('[data-zone-clear]').addEventListener('click', () => { delete zones[selected()]; persist(); redraw(); });
+  root.querySelector('[data-zone-clear]').addEventListener('click', () => { delete zones[selected()]; dirtyFaces.add(selected()); persist(); redraw(); });
+  if(zones.front?.page) pageInput.value=String(zones.front.page);
   redraw();
 }
