@@ -1,95 +1,159 @@
-# PackSignal — the packaging compiler
+<div align="center">
 
-A working local artwork-review application for **Esko AIForge 2026**, addressing **“Is this Packaging Artwork ready to launch?”**
+<img src="public/icon.svg" width="72" alt="PackSignal mark" />
 
-PackSignal connects a supplied product fact, checklist requirement, artwork evidence, result, and reviewer decision. It compares documents; it does not certify legal compliance or authorize printing.
+# PackSignal
 
-PackSignal is the working project name chosen to avoid confusion with [Esko's existing Pack Proof product](https://www.esko.com/en/products/pack-proof). This is a name-selection decision, not trademark or domain clearance.
+### Catch the packaging error before it becomes a print run.
 
-The review workflow takes cues from professional prepress and artwork-management concepts in [Esko WebCenter](https://www.esko.com/en/products/webcenter); PackSignal is an independent hackathon prototype and is not an Esko product.
+**An evidence-backed artwork review for the [Esko AIForge 2026 challenge](https://www.hackerearth.com/community/challenges/hackathon/esko-aiforge/).**
 
-## Run
+PackSignal connects approved product facts, supplied rules, and finished artwork—then shows a reviewer exactly what matches, what conflicts, and what still needs a person.
 
-Requires Node.js 24+ and Python 3.10+.
+<p>
+  <a href="#judge-demo">▶ See the demo path</a> ·
+  <a href="submission/APPROACH.md">Why this approach</a> ·
+  <a href="submission/ARCHITECTURE.md">Architecture</a> ·
+  <a href="DEMO_SCRIPT.md">Presentation script</a>
+</p>
 
-```sh
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+![Hackathon](https://img.shields.io/badge/Esko-AIForge%202026-17372b?style=for-the-badge)
+![Runtime](https://img.shields.io/badge/Node.js-24%2B-315f49?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![Evaluation](https://img.shields.io/badge/synthetic%20evaluation-21%2F21-d1ef8e?style=for-the-badge)
+![Workflow](https://img.shields.io/badge/workflow-local--first-203f31?style=for-the-badge)
+
+</div>
+
+<p align="center">
+  <img src="assets/readme-walkthrough.gif" width="100%" alt="Animated PackSignal walkthrough: ingest a fictional packaging artwork and its references, surface a source conflict, detect a net quantity mismatch, trace the evidence, and catch a regression in a revised artwork." />
+</p>
+
+<p align="center"><em>Animated product walkthrough · Fieldday is an original fictional sample, not a real product or compliance approval.</em></p>
+
+---
+
+## The problem: packaging review is a reconciliation job
+
+Before artwork goes to print, someone must reconcile the label with product specifications, claims approvals, and company or market rules. Those inputs may disagree, use different serving bases, or be spread across PDFs, spreadsheets, and artwork files. A text-extraction miss can also look like a missing statement when the page simply needs human inspection.
+
+PackSignal turns that scattered review into a traceable, reviewable decision:
+
+> **Product fact → supplied requirement → artwork evidence → check result → reviewer decision**
+
+It is designed for the challenge question **“Is this Packaging Artwork ready to launch?”** It helps answer that question against the references provided for a review; it does not make a universal legal-compliance or print-release decision.
+
+## Judge demo: one minute to see the idea
+
+1. Start PackSignal and choose **Explore organizer sample**.
+2. Open a finding and inspect the artwork proof, the exact source quotation or spreadsheet cell, and the rule used for comparison.
+3. Open the source record: the Dancing Fish content sheet is marked **Draft / In Review**, and its nutrition columns leave the serving basis unresolved. PackSignal keeps those questions visible instead of silently treating them as approved facts.
+4. Open the fictional **Fieldday V1 → V2** revision example: V1 has a quantity discrepancy; V2 corrects it but removes the customer-care email. The full checklist runs again and catches the new omission.
+
+The organizer files are the challenge's supplied Dancing Fish carton PDF and content spreadsheet in [`samples/organizer/`](samples/organizer/). No organizer rulebook was present in that downloaded sample set, so the controlled comparison case uses an explicitly fictional company checklist.
+
+## What makes the review trustworthy
+
+| Review state | What it means |
+|---|---|
+| **Matches reference** | A supported comparison agrees with the supplied reference. This is not universal compliance approval. |
+| **Issue found** | An extracted value conflicts with a supplied requirement, or required copy is absent after coverage is established. |
+| **Human review** | Source authority, interpretation, claims evidence, serving basis, placement, or vision output needs a reviewer. |
+| **Unable to verify** | The source, extraction, or implemented check does not support a reliable conclusion. |
+
+Every finding can show its observed artwork text, expected value, source filename and location, applicable supplied rule, and artwork region where available. Reviewer dispositions are recorded separately; acknowledging an issue does not turn it into a pass.
+
+### A useful distinction
+
+AI helps interpret supplied prose, propose structured facts or checks, transcribe rendered pages, and answer questions about a finding. Exact comparisons—such as quantities, approved phrases, and numeric values—are handled by deterministic checks where supported. AI output is evidence to inspect, not an authority to release artwork.
+
+## The product in four moves
+
+```mermaid
+flowchart LR
+    A[Artwork + product files] --> C[Extract text, cells, pages, and provenance]
+    B[Supplied rules + claims] --> C
+    C --> D[Run supported deterministic checks]
+    C -. optional Gemini .-> E[Propose facts, rules, and visual observations]
+    E --> F[Validate evidence and preserve uncertainty]
+    D --> F
+    F --> G[Reviewer inspects proof and records a decision]
+    G --> H[Re-run the full checklist on every revision]
 ```
 
-Create `.env.local` from `.env.example`; set `PACKPROOF_PYTHON` to your absolute `.venv/bin/python` path. On this Codex workstation the bundled Python is discovered automatically.
+### Built for a real review loop
 
-```sh
+- **Evidence-linked findings:** jump from a result to a highlighted artwork area and back to a PDF page, source document, or spreadsheet cell.
+- **Original-artwork proof:** zoom to the located region and compare artwork text with the supplied value; the artwork file is not silently edited.
+- **Coverage, not confidence theater:** colored artwork regions correspond to located checks. Uncolored areas are not presented as checked.
+- **Source conflict handling:** conflicting values and draft sources stay visible until a reviewer resolves them.
+- **Revision regression checks:** compare versions and rerun the supported checklist, so fixing one problem does not hide a newly introduced one.
+- **Signed exports:** export a portable HTML, PDF, or JSON review record. HTML/JSON include an Ed25519 integrity proof that can be checked offline.
+- **Useful prepress context:** reviewer-drawn panel zones, text-height screening, nutrition plausibility prompts, and barcode/QR type-and-location signals support inspection without claiming print-quality certification.
+
+## Run it locally
+
+**Requirements:** Node.js 24+ and Python 3.10+.
+
+```bash
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 npm run doctor
 npm start
 ```
 
-Open **http://127.0.0.1:4173**. There are no npm runtime dependencies. The server deliberately listens only on the local computer. Keep the terminal running. If `npm start` says PackSignal is already listening, leave that server running and refresh the page instead of starting another copy.
+Open **http://127.0.0.1:4173**. The local server keeps review data on this computer. Deterministic review works without an API key. For optional Gemini-assisted interpretation, configure a server-side key in the ignored `.env.local` file and restart the server; never put credentials in source control or the browser. See [`submission/API_SETUP.md`](submission/API_SETUP.md) for provider setup and quota behavior.
 
-## What works
+Useful commands:
 
-- Upload one artwork and up to seven references, with explicit document roles.
-- Read searchable PDFs with page coordinates; read XLSX cells, DOCX text/tables, CSV, JSON, TXT and Markdown.
-- Render PDF/image artwork for visual inspection. Images and scans require optional AI transcription or manual review.
-- Show a check-coverage map directly on the artwork: located matches are green, human-review findings amber, and issues red. Uncolored areas are not claimed as checked.
-- Open a visual copy comparison for located discrepancies. It shows original artwork, observed evidence and supplied reference text without altering the artwork.
-- Review in a three-column workbench with a four-stage source-to-audit stepper. The artwork viewer adds a live prepress HUD, PDF-calibrated cursor coordinates in millimeters, zoom, evidence/panel layers, and a browser-side SHA-256 recheck of the original file.
-- Map Front, Back, Left, Right, Top, and Bottom rectangles on the supplied artwork. The optional draggable 3D fold context maps those reviewed regions to carton faces and places selectable finding pins. It is an approximate cuboid, not a CAD dieline fold simulation; cut/crease geometry, board stock, and glue structure are not inferred.
-- Open a proof dialog that auto-centers and zooms to the located artwork region, dims the surrounding area, and draws an SVG trace from source evidence to the artwork box. The supplied reference remains a comparison aid and never edits the artwork.
-- Uncorroborated native PDF text becomes a visibility question for a person; an OCR miss is never treated as proof of absence.
-- Inspect every detected net-quantity occurrence. With multiple structured SKU sources and a resolved variant, sibling-variant wording is surfaced as a human-review prompt rather than an automatic defect.
-- Scan clearly tabular product-family spreadsheets for another SKU's variant, allergen copy, ingredients, quantity, or barcode. Each hit links to its source cell and artwork evidence, and stays a human-review prompt because cross-promotion can be intentional.
-- Review common environmental claim wording against a supplied claims register. A listed reference is evidence to inspect, not proof of substantiation, certification, legality, or truth.
-- Compare reviewer-supplied required language pairs exactly when a JSON reference includes `translation_pairs`. Missing copy is an issue only after the source and complete-artwork coverage are confirmed; the check does not machine-translate or judge semantic equivalence.
-- Compare revision artwork side by side, export a self-contained HTML review, and use a guided tour of the organizer sample.
-- Screen extracted PDF text heights against a reviewer-selected threshold, run internal nutrition plausibility checks, and inspect allergen emphasis cues. These are review aids, not legal determinations.
-- Draw panel zones over supplied artwork. PackSignal reports which supported checklist rules are assigned to a mapped face and compares located text geometry against those zones; the reviewer-drawn rectangles do not define legal panel boundaries.
-- Ask a follow-up question scoped to one finding’s evidence, copy a designer change request, and seal each exported review snapshot with a local Ed25519 signature. HTML and JSON include a portable proof; the PDF prints the signature and key fingerprint. Verify HTML or JSON with `node scripts/verify-report.mjs <report.html|report.json>`.
-- Add optional US, India and EU starter review prompts, multilingual-content signals, and local barcode/QR type-and-location detection. These are review aids, not legal or print-quality certification.
-- Extract a source-linked truth sheet, flag conflicting values and draft references.
-- Compare supported copy, net quantities with unit conversion, and nutrition values with basis checks.
-- Retain uncompiled prose rules as unverified rather than hiding them.
-- Show expected and observed values, source filenames/cells/pages and artwork regions.
-- Confirm source authority, extraction coverage, panel placement, and ambiguous nutrition columns with a recorded rationale.
-- Record reviewer dispositions without changing machine results.
-- Rerun all checks for revised artwork and identify resolved/new/changed/not-rechecked findings.
-- Export a PDF report or complete JSON record; retain local review history.
-- Optional Gemini: interpret source prose, propose rule interpretations, read image text, and identify evidence-backed questions. AI quotations are checked against supplied text; AI interpretations and transcriptions require human confirmation.
+```bash
+npm test                 # Node regression checks
+npm run evaluate         # 21 hand-authored synthetic expected outcomes
+npm run smoke            # Isolated organizer-file ingestion and signed export workflow
+npm run package          # Build the source submission ZIP
+```
 
-## Included files
+The 21/21 result is a deterministic synthetic regression evaluation, not an independent benchmark, real-world accuracy score, or legal validation. The smoke workflow uses a temporary data directory and makes no external AI request.
 
-**Organizer case:** the official Dancing Fish carton and content spreadsheet are in `samples/organizer/`. The application loads and parses those actual files. Their provenance is recorded there. The spreadsheet is draft, contains reconstructed information, and has ambiguous nutrition columns. No organizer rulebook was found among the two linked sample downloads.
+## What is in the repository
 
-**Controlled fictional case:** `samples/fieldday-v2/` includes original front/back artwork, a product specification, 12 company rules, a claims register, and an optional conflicting handover note. Baseline, V1 and V2 demonstrate clean copy, omissions, source conflict and regression. JSON sources power the local built-in path. PDF source versions are available for AI-assisted interpretation. Evaluation answer files are never read by the application or sent to AI.
+| Path | Contents |
+|---|---|
+| [`samples/organizer/`](samples/organizer/) | Challenge-provided Dancing Fish artwork PDF and content spreadsheet, with provenance notes |
+| [`samples/fieldday-v2/`](samples/fieldday-v2/) | Original fictional baseline, V1 and V2 artworks; specs, rules, claims register, and controlled regression scenarios |
+| [`submission/APPROACH.md`](submission/APPROACH.md) | Problem framing, differentiation, sample provenance, and validation boundaries |
+| [`submission/ARCHITECTURE.md`](submission/ARCHITECTURE.md) | Runtime responsibilities, workflow diagram, status semantics, and trust limits |
+| [`submission/KNOWN_LIMITS.md`](submission/KNOWN_LIMITS.md) | Current implementation limits and production gaps |
+| [`submission/JUDGE_QA.md`](submission/JUDGE_QA.md) | Likely judge questions with direct, evidence-based answers |
+| [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Timed demo and campus presentation guide |
 
-**Older starter files:** the original root `app.js`, `index.html`, `styles.css`, `assets/` and `data/` remain as legacy material. They are not served. The current application is in `public/` with `server.mjs` and `lib/`.
+## Technology
 
-## API configuration
+**Node.js** serves the app and review APIs. **Python** handles bounded document parsing, PDF page rendering, spreadsheet cells, and report generation. The browser app presents the review workbench. Optional **Gemini** calls support document interpretation and multimodal observations; deterministic comparison code remains responsible for exact checks. No autonomous agent swarm or vector database is needed for this bounded, evidence-first workflow.
 
-Local mode requires **no API spending**. AI-assisted mode is the default: PackSignal extracts sources and runs exact checks first, makes those findings available, then runs Gemini in the background if server-side credentials are configured. If Gemini is not configured or a request fails, the local review remains available with an explicit status. Settings is read-only and never accepts or returns credentials. Set `GEMINI_API_KEY` through `GEMINI_API_KEY_5` and `GEMINI_MODEL` in the ignored `.env.local` file, then restart the server. A review starts with one configured credential; after a bounded quota or temporary-provider failure, the coordinator can restart the AI review with another configured credential.
+## Scope, safety, and honest limits
 
-Gemini is the primary and only implemented LLM provider; Groq is not integrated. The initial configurable model is `gemini-3.8-flash`. Availability and free quota must be checked in the user's actual Google project. A real Gemini 3.8 Flash review of Fieldday V1 has completed in one outbound attempt; its PDF is included in the example reports. A newly configured key is not represented as verified access until its request succeeds.
+- PackSignal checks supplied sources and supported rules. It does **not** certify compliance with FDA, FSSAI, EU, or any other legal regime.
+- Market presets are starter review prompts, not complete or current legal rules. Applicability and required formatting need qualified human review.
+- OCR and AI transcription can miss or misread text. A failed extraction alone is never treated as proof that copy is absent.
+- The optional 3D view is approximate carton context built from reviewer-drawn rectangular zones. It is not a structural dieline, CAD fold simulation, or inference of cut/crease, glue, board stock, or print behavior.
+- The organizer sample contains draft/reconstructed content and nutrition ambiguity. PackSignal reports those limits; it does not label the supplied artwork legally wrong.
+- This is an independent hackathon prototype, not an Esko product or endorsement. It is not a multi-tenant production service.
 
-The adapter retries only 429/503 responses and honors provider retry delays. Retries stay on the same credential; after a quota or temporary provider failure, that credential enters cooldown and the bounded coordinator can try another configured credential. Defaults are at most three attempts per request, 6 seconds between outbound attempts, and 20 outbound attempts per server session. Retries count toward that ceiling. A provider delay beyond the retry budget defers AI work. Local findings remain available with an explicit AI failure or deferral notice. Multiple credentials do not create unlimited quota or guarantee provider availability. See `submission/API_SETUP.md` for limits and recovery details.
+See [`submission/KNOWN_LIMITS.md`](submission/KNOWN_LIMITS.md) before using it outside a controlled demonstration.
 
-## Data and boundaries
+## Submission and further reading
 
-When running locally, records live in `.packproof/reviews/`. A hosted instance stores review files on its configured persistent disk. AI mode sends extracted text and up to 12 rendered pages to Google in batches of three; omitted or untranscribed pages remain unverified. No external model request is made in local-only mode. Use only fictional or otherwise permitted files in a hosted demo.
+- [Problem and approach](submission/APPROACH.md)
+- [Architecture](submission/ARCHITECTURE.md)
+- [Judge Q&A](submission/JUDGE_QA.md)
+- [Timed demo script](DEMO_SCRIPT.md)
+- [Prepared submission brief](submission/PackSignal-Submission-Brief.pdf)
+- [Deployment notes](DEPLOY_RENDER.md)
 
-Upload limits: 8 files, 15 MB/file, 30 MB/review; PDFs up to 12 pages; spreadsheets up to 2,000 rows × 80 columns per sheet. Oversized Office archives are rejected. Macros and external spreadsheet links are not executed. Source documents are data, not instructions.
+To build the source archive, run `npm run package`; the generated ZIP excludes API credentials, local review history, virtual environments, and unrelated research.
 
-Only allowlisted public files and review API routes are served. The server checks host/origin and requires a per-session request token for mutations. The hosted demo adds one shared Basic Auth gate; it is not user accounts, role-based access, or tenant isolation. Keep hosted uploads limited to permitted demo material. See `submission/KNOWN_LIMITS.md` before using it beyond a controlled demonstration.
+<div align="center">
 
-## Submission
+**Every finding has a source. Every uncertain decision stays visible.**
 
-- `submission/APPROACH.md`: problem, differentiation and implementation
-- `submission/ARCHITECTURE.md`: architecture and flow diagram
-- `DEMO_SCRIPT.md`: 3–5 minute recording and campus walkthrough
-- `submission/JUDGE_QA.md`: likely questions and honest answers
-- `ROADMAP.md`: final preparation and later production work
-
-Run `npm run package` to create `submission/packsignal-source.zip`. It excludes credentials, review history, virtual environments and unrelated research. Record the actual running app with organizer files; do not substitute a mock AI run for a live one.
-
-Run `npm test` for zero-dependency Node regression checks, including market-preset cues, exact bilingual copy pairs, sibling-SKU screening, sustainability review, panel-zone behavior and bounded Gemini failover. `npm run smoke` starts a separate local server with an isolated temporary data directory, reviews the official PDF/XLSX sample, records a reviewer decision, exports HTML/PDF, and verifies the report seal. It makes no external AI request and does not alter saved workspace reviews. `npm run evaluate` runs 21 hand-authored synthetic expected outcomes covering clean content, defects, ambiguity, extraction gaps and one revision regression. It reports detected defects, clean-case issue alarms, review/unable routing, comparison completion and deterministic analysis time. These are local regression checks, not an independent accuracy or production performance benchmark.
-
-A prepared three-page brief is in `submission/PackSignal-Submission-Brief.pdf`; example reports are in `submission/example-reports/`. For custom source schemas, see `submission/INPUT_FORMATS.md`. Current local example reports contain no reviewer dispositions. The retained Gemini report is a historical integration example using an earlier fixture. Neither set represents external reviewer approval.
+</div>
