@@ -241,7 +241,16 @@ function mountCartonDrag(container,onRotation){
   slider?.addEventListener('input',event=>{event.stopPropagation();setPlaying(false);rotate(angle+wrap(Number(slider.value)-angle),tilt,{immediate:true});});
   // Preserve the live pose and avoid the document handler rebuilding the whole review.
   slider?.addEventListener('change',event=>event.stopPropagation());
-  for(const button of stage.querySelectorAll('[data-carton-view]'))button.addEventListener('click',()=>{setPlaying(false);const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];rotate(angle+wrap(target-angle),-8);});
+  for(const button of stage.querySelectorAll('[data-carton-view]'))button.addEventListener('click',()=>{
+    setPlaying(false);
+    const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];
+    rotate(angle+wrap(target-angle),-8);
+    // Highlight the focused face and update the location label.
+    const faceName=button.dataset.cartonView;
+    for(const face of scene.querySelectorAll('[data-carton-face]'))face.classList.toggle('face-focused',face.dataset.cartonFace===faceName);
+    const locationEl=stage.querySelector('.carton-location');
+    if(locationEl)locationEl.textContent=({front:'Front',back:'Back',left:'Left side',right:'Right side'}[faceName]||faceName)+' face';
+  });
   stage.querySelector('[data-carton-reset]')?.addEventListener('click',reset);
   play?.addEventListener('click',()=>setPlaying(!playing));
   const visibility=()=>{if(document.hidden)setPlaying(false);};document.addEventListener('visibilitychange',visibility);

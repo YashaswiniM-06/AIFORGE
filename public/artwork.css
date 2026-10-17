@@ -178,6 +178,14 @@
   box-shadow: inset 0 0 0 .5px #00000030;
 }
 .carton-studio .carton-face img { pointer-events: none; user-select: none; -webkit-user-drag: none; }
+.carton-studio .carton-face.face-focused {
+  box-shadow: inset 0 0 0 2.5px #a2d27c, 0 0 18px 2px #70b04755;
+  z-index: 2;
+}
+.carton-studio .carton-face.face-focused::after {
+  border: 2px solid #b8d99060;
+  background: linear-gradient(112deg, #b8d98025, transparent 38%, #a2d27c10);
+}
 .carton-studio .carton-face::after {
   content: "";
   position: absolute;

@@ -119,10 +119,16 @@ export function mountViewport({ frame, content, controls, slider, initialView, f
         view = zoomAt(gesture.view, gesture.view.scale * Math.hypot(a.x - b.x, a.y - b.y) / gesture.distance, gesture.center, layout, maxScale);
         view.x += center.x - gesture.center.x; view.y += center.y - gesture.center.y;
         suppressClick = true; frame.classList.add('is-panning'); render();
-      } else if (gesture?.type === 'drag' && view.scale > 1) {
+      } else if (gesture?.type === 'drag') {
         const dx = point.x - gesture.start.x, dy = point.y - gesture.start.y;
         if (gesture.moved || Math.hypot(dx, dy) > 4) {
           gesture.moved = true; suppressClick = true; frame.classList.add('is-panning');
+          // Auto-zoom to 1.5× if the user starts dragging at 100% so the pan is visible.
+          if (!gesture.autoZoomed && view.scale <= 1) {
+            gesture.autoZoomed = true;
+            view = zoomAt(view, 1.5, { x: 0, y: 0 }, layout, maxScale);
+            gesture.view = { ...view, x: view.x - dx, y: view.y - dy };
+          }
           view = { ...view, x: gesture.view.x + dx, y: gesture.view.y + dy }; render();
         }
       }
