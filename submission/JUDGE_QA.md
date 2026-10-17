@@ -24,8 +24,8 @@ No. It flags common wording and can surface a reference string from the supplied
 **Can it tell whether French and English warnings mean the same thing?**
 It can compare exact, required phrase pairs that the source owner has supplied and approved. It can expose a missing phrase on one language side once source authority and artwork coverage are confirmed. It does not translate or decide semantic, safety or legal equivalence.
 
-**Does the lower-30% guide enforce FDA or FSSAI placement?**
-No. It shows a located quantity box relative to a rectangle the reviewer drew as Front. It does not decide whether that rectangle is a statutory display panel or which rule applies.
+**Do the mapped panel zones define legal display panels?**
+No. A reviewer draws rectangles over the supplied artwork. PackSignal uses those zones only for supported supplied checklist rules assigned to the selected face; it does not infer statutory display panels or determine legal placement.
 
 **How does a designer know what to change?**
 The copyable ticket carries the supplied wording, observed artwork text, page and approximate location. It does not invent an Illustrator layer, font size or legal replacement when the supplied source does not specify one.
@@ -34,9 +34,9 @@ The copyable ticket carries the supplied wording, observed artwork text, page an
 Machine status and human disposition are separate. Acknowledgment is recorded with a note; it does not mark the artwork corrected. Revisions must be re-extracted and rechecked.
 
 **What happens if the model fails or quota runs out?**
-The run displays the failure and completes available local checks. It does not silently rotate accounts, spend on another provider, or display fabricated AI output.
+PackSignal retries 429 and 503 responses within fixed per-request and per-session limits, then can fail over to another configured Gemini key. A failed key is cooled down. If the pool cannot complete the request, local checks remain available and the AI failure is shown. This is bounded failover, not unlimited quota or guaranteed availability.
 
-The transport has offline regression coverage for a temporary-service retry, same-key retries, and a project-quota cooldown shared across configured keys. This verifies the local adapter behavior; it is not a live quota-recovery test against Google.
+Offline regression tests cover same-key retries, cooldown and the transport behavior used by a second credential. They do not simulate Google's quota system end to end. Keys in the same Google project may share project limits.
 
 **How do you know a missing phrase is really absent?**
 Initially we do not. It remains unverified until native extraction coverage is explicitly inspected. AI transcription alone cannot prove absence. Missing/hidden panels remain a limitation.

@@ -2,14 +2,14 @@
 
 ## Implemented
 
-Local app, actual organizer downloads, original supplementary fixtures, upload roles, bounded parsing/rendering, source truth sheet, supported comparisons, sibling-SKU table screening, exact approved-language-pair checks, environmental-claim evidence prompts, market starter checklists, lower-front geometry guide, evidence spotlight and source-to-artwork trace, PDF-calibrated prepress HUD with source hash recheck, six-face reviewer mapping and approximate draggable carton context with evidence pins, source decisions, reviewer dispositions, revision comparison, signed PDF/HTML/JSON exports, configurable Gemini adapter, startup recovery, isolated HTTP smoke test, and submission notes.
+Local app, actual organizer downloads, original supplementary fixtures, upload roles, bounded parsing/rendering, source truth sheet, supported comparisons, sibling-SKU table screening, exact approved-language-pair checks, environmental-claim evidence prompts, market starter checklists, evidence spotlight and source-to-artwork trace, PDF-calibrated prepress HUD with source hash recheck, six-face reviewer mapping and approximate draggable carton context with evidence pins, source decisions, reviewer dispositions, revision comparison, signed PDF/HTML/JSON exports, bounded five-key Gemini failover, startup recovery, isolated HTTP smoke test, Render Docker blueprint, and submission notes.
 
 ## October 16–20, 2026 · India time
 
 | Date | Focus | Concrete outcome |
 |---|---|---|
 | Oct 16 | Finish the review workflow and connect one available Gemini project | Organizer review and one genuine AI-assisted run; disclose provider failures if any |
-| Oct 17 | Focused validation and feature completion | 37 automated tests pass; 21/21 deterministic synthetic expected outcomes match; environment and market cue checks pass; isolated organizer HTTP smoke passed with 35 findings; source ZIP is 8.10 MB. |
+| Oct 17 | Focused validation and deployment preparation | 40 automated tests pass; 21/21 deterministic synthetic expected outcomes match; isolated organizer HTTP smoke passed; Render Docker deployment is prepared but not yet published. |
 | Oct 18 | Domain review and presentation | If a permitted reviewer is available, record actual feedback; otherwise state that none was obtained |
 | Oct 19 | Record the 3–5 minute demo | Official files, evidence proof, uncertainty, human decision, revision regression, export |
 | Oct 20 | Submission buffer | Check organizer requirements, package below 50 MB, submit before 11:59 PM IST |

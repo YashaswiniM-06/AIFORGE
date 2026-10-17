@@ -2,7 +2,7 @@
 
 ```mermaid
 flowchart TD
-  U[Reviewer: upload files and assign roles] --> S[Local Node HTTP server]
+  U[Reviewer: upload files and assign roles] --> S[Node HTTP service: local or hosted]
   S --> P[Python parser and page renderer]
   P --> D[Documents: text, cells, pages, coordinates, hashes]
   D --> L[Local fact extraction]
@@ -27,13 +27,13 @@ flowchart TD
 | Component | Responsibility |
 |---|---|
 | `public/` | Reviewer workflow, proof spotlight, trace connectors, viewer controls and panel-mapped carton preview; no provider keys embedded in code |
-| `server.mjs` | Validated uploads, private storage, serial jobs, APIs, session token, report requests |
+| `server.mjs` | Validated uploads, configured storage, serial jobs, APIs, session token, report requests, optional hosted Basic Auth |
 | `lib/extract.py` | Bounded document parsing, PDF coordinates, page images, report generation |
 | `lib/engine.mjs` | Source facts/conflicts, comparisons, evidence, revision changes |
-| `lib/ai.mjs` | One official Gemini request, schema, quotation constraints, provider errors |
+| `lib/ai.mjs` | Bounded Gemini requests, schema, quotation constraints, provider errors |
 | `lib/audit-signature.mjs` | Local Ed25519 sealing, portable proof generation and verification |
 | `scripts/verify-report.mjs` | Offline integrity check for exported HTML or JSON proofs |
-| `.packproof/` | Local records, original inputs, rendered pages and cached responses; excluded from submission |
+| `.packproof/` | Local records, original inputs, rendered pages and cached responses; excluded from submission. Hosted deployments point this data directory at a persistent disk. |
 
 The prepress HUD derives millimeter coordinates from extracted PDF page dimensions. Raster-only inputs use normalized coordinates because print scale is unknown. Before showing “SHA-256 verified,” the browser fetches the locally stored original file and compares its digest with the extraction record. The six-face carton context uses reviewer-drawn rectangular panel zones and approximate cuboid dimensions; it does not detect cut/crease geometry or create a structural CAD model.
 

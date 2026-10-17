@@ -6,11 +6,11 @@ Default additional spending: **$0**. Local checks run without an API. No paid se
 
 Gemini is PackSignal's primary and only implemented LLM provider. Local deterministic checks remain available when Gemini cannot respond; this is explicitly reported as local continuation, not a successful AI review. Groq is not implemented.
 
-1. Use one Google AI Studio key from a project you control. PackSignal reads `GEMINI_API_KEY` from `.env.local` on server startup. The UI is read-only and never handles the secret.
+1. Use only credentials for projects you control and are authorized to operate. PackSignal supports `GEMINI_API_KEY` through `GEMINI_API_KEY_5`; each is read server-side from `.env.local` at startup. The UI is read-only and never handles the secrets.
 2. Check the project's available model and free-tier quota in AI Studio. The initial configurable model is `gemini-3.8-flash`.
-3. Copy `.env.example` to `.env.local`, set `GEMINI_API_KEY` (and optionally `GEMINI_MODEL`), then restart PackSignal. Never send a key in a chat or commit it.
+3. Copy `.env.example` to `.env.local`, set one or more of the five key variables (and optionally `GEMINI_MODEL`), then restart PackSignal. Never send a key in a chat or commit it. Rotate and replace any key previously exposed in chat before deployment.
 4. AI-assisted mode is the default. Local extraction and exact checks finish first; Gemini then runs in the background. A review can be used while Gemini is still running. A real successful run is required before presenting AI behavior as validated.
-5. If quota is exhausted, wait or inspect the project allowance. PackSignal uses a single configured key and does not rotate credentials to bypass quota.
+5. If a request receives a quota or temporary-provider error, PackSignal applies bounded retries and a cooldown to that credential, then may try another configured credential. Provider and project limits still apply; the pool is not unlimited throughput and does not guarantee recovery.
 
 ### Request limits and recovery
 
@@ -18,7 +18,7 @@ PackSignal does not promise unlimited API access or keep retrying forever. Reque
 
 - Retry only HTTP 429 and 503, with at most three attempts per request by default.
 - Honor a provider `Retry-After` header or `google.rpc.RetryInfo` delay. If waiting would exceed the request's retry budget, defer AI work instead of sending another immediate request.
-- Keep a process-wide cooldown across the server process. A new review cannot skip that cooldown.
+- Keep provider cooldowns per credential across the server process. A new review cannot skip a credential's cooldown; the coordinator may use another configured credential within the global session limits.
 - Preserve the deterministic findings and display the AI failure or deferral. Image interpretation and other unfinished AI work remain unverified.
 - Send artwork pages first in groups of three, up to 12 rendered pages total. The initial batch extracts supplied facts/rules and reviews its page images; subsequent batches transcribe only their labeled pages. A full 12-page vision pass can use four provider requests, still subject to the session cap, retry budget, and Google quota. If a later batch fails, earlier proposals remain available, incomplete pages are named in the review, and partial results are not cached as complete.
 
@@ -30,7 +30,7 @@ Optional `.env.local` controls:
 | `GEMINI_MIN_INTERVAL_MS` | `6000` | Minimum interval between outbound attempts. Provider delays may require a longer wait. |
 | `GEMINI_MAX_ATTEMPTS` | `3` | Maximum attempts for one request, within the implementation's bounded limits. |
 
-These controls limit this app; they do not increase provider quota or guarantee free usage. The session counter is not a billing ledger and resets with the server. Check project usage before restarting or increasing a local allowance. The key is loaded from the ignored `.env.local` file at server startup and never shown in the UI. Revoke and replace any key exposed in chat or a public repository before using Gemini again.
+These controls limit this app; they do not increase provider quota or guarantee free usage. The session counter is not a billing ledger and resets with the server. Check project usage before restarting or increasing a local allowance. Credentials are loaded from the ignored `.env.local` file at server startup and never shown in the UI. Revoke and replace any key exposed in chat or a public repository before using Gemini again. Keys associated with a shared project may share the same project quota.
 
 Google AI Pro subscription benefits and Gemini API billing are related only through explicitly eligible benefits, not unlimited interchangeable usage. Current Google documentation lists certain Developer Program/Cloud credit benefits for eligible plans; eligibility and redemption must be checked on the account. Do not assume five accounts provide one pooled API allowance. Paid API setup can require prepayment. For the zero-spend path, remain on available free quota.
 
