@@ -1,0 +1,27 @@
+{
+  "document_id": "ZENITH-SPEC-2026",
+  "version": "1.0",
+  "status": "APPROVED_SPECIFICATION",
+  "product": {
+    "brand": "ZENITH",
+    "name": "NITRO COLD BREW",
+    "variant": "Oat Vanilla",
+    "net_quantity": {
+      "value": 330,
+      "unit": "mL",
+      "preferred_display": "330 mL (11.2 FL OZ)"
+    },
+    "ingredients": "Organic Cold Brewed Arabica Coffee, Oat Milk, Natural Vanilla Extract, Sea Salt.",
+    "storage_statement": "Shake gently. Best served chilled. Keep refrigerated.",
+    "manufacturer": "Brewed & Canned by Zenith Beverage Co., Portland, OR 97201",
+    "caffeine_content": "180 mg per can",
+    "barcode": "8901234567890"
+  },
+  "nutrition": {
+    "basis": { "value": 330, "unit": "mL" },
+    "energy_kcal": 45,
+    "fat_g": 1.5,
+    "sugars_g": 4,
+    "protein_g": 1
+  }
+}

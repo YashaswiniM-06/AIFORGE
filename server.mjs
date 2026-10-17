@@ -104,13 +104,20 @@ function worker(args){return new Promise((done,reject)=>{
 });}
 const samples={
   organizer:[['samples/organizer/DancingFish_Granola_Berry_US_Carton.pdf','artwork'],['samples/organizer/DancingFish_Granola_BerryCrunch_US_Content_Sheet.xlsx','spec']],
+  zenith:[['samples/zenith/artwork/zenith_artwork.pdf','artwork'],['samples/zenith/inputs/zenith_spec.json','spec'],['samples/zenith/inputs/zenith_rules.json','rules']],
   fieldday:[['samples/fieldday-v2/artwork/fieldday-v1.pdf','artwork'],['samples/fieldday-v2/inputs/product-spec.json','spec'],['samples/fieldday-v2/inputs/company-rulebook.json','rules'],['samples/fieldday-v2/inputs/claims-register.json','claims']],
   signals:[['samples/fieldday-v2/artwork/fieldday-signals.pdf','artwork'],['samples/fieldday-v2/inputs/product-spec.json','spec'],['samples/fieldday-v2/inputs/company-rulebook.json','rules'],['samples/fieldday-v2/inputs/claims-register.json','claims']],
   clean:[['samples/fieldday-v2/artwork/fieldday-baseline.pdf','artwork'],['samples/fieldday-v2/inputs/product-spec.json','spec'],['samples/fieldday-v2/inputs/company-rulebook.json','rules'],['samples/fieldday-v2/inputs/claims-register.json','claims']],
   conflict:[['samples/fieldday-v2/artwork/fieldday-v1.pdf','artwork'],['samples/fieldday-v2/inputs/product-spec.json','spec'],['samples/fieldday-v2/inputs/unconfirmed-handover-note.json','spec'],['samples/fieldday-v2/inputs/company-rulebook.json','rules'],['samples/fieldday-v2/inputs/claims-register.json','claims']],
 };
 const fielddaySampleZones={front:{page:1,box:[40/1200,60/860,510/1200,802/860]},back:{page:1,box:[532/1200,60/860,1160/1200,802/860]}};
-const sampleZones=sample=>['fieldday','clean','conflict','signals'].includes(sample)?structuredClone(fielddaySampleZones):{};
+const zenithSampleZones={
+  back:{page:1,box:[10/1200,40/800,290/1200,760/800]},
+  left:{page:1,box:[310/1200,40/800,590/1200,760/800]},
+  front:{page:1,box:[610/1200,40/800,890/1200,760/800]},
+  right:{page:1,box:[910/1200,40/800,1190/1200,760/800]}
+};
+const sampleZones=sample=>sample==='zenith'?structuredClone(zenithSampleZones):['fieldday','clean','conflict','signals'].includes(sample)?structuredClone(fielddaySampleZones):{};
 async function writeInputs(r,files){
   if(!Array.isArray(files)||files.length<2||files.length>8)throw fail('Supply one artwork and at least one reference, up to eight files.');
   if(files.filter(f=>f.role==='artwork').length!==1||!files.some(f=>['spec','rules'].includes(f.role)))throw fail('Choose one artwork and at least one product specification or rulebook.');
@@ -203,7 +210,7 @@ async function createReview(input){
       files=[...revised,...await Promise.all(references.map(async f=>({name:f.name,role:f.role,base64:(await readFile(join(dir(previous.id),'files',f.disk))).toString('base64')})))];
       r.files=await writeInputs(r,files);references.forEach((f,i)=>{r.files[i+1].id=f.id;});
     }else{
-      if(input.sample){if(!samples[input.sample])throw fail('Unknown sample.');r.sample=input.sample;r.name=input.sample==='organizer'?'Dancing Fish · Berry Crunch':input.sample==='clean'?'Fieldday · clean baseline':input.sample==='conflict'?'Fieldday · conflicting sources':input.sample==='signals'?'Fieldday · language and code signals':'Fieldday · artwork V1';r.market=input.sample==='organizer'?'United States':'Fictional company checklist';r.options.panelZones=sampleZones(input.sample);if(Object.keys(r.options.panelZones).length)r.options.panelZoneSource='authored synthetic sample geometry';files=await Promise.all(samples[input.sample].map(async([path,role])=>({name:basename(path),role,base64:(await readFile(join(root,path))).toString('base64')})));}
+      if(input.sample){if(!samples[input.sample])throw fail('Unknown sample.');r.sample=input.sample;r.name=input.sample==='zenith'?'Zenith Cold Brew · Nitro Vanilla':input.sample==='organizer'?'Dancing Fish · Berry Crunch':input.sample==='clean'?'Fieldday · clean baseline':input.sample==='conflict'?'Fieldday · conflicting sources':input.sample==='signals'?'Fieldday · language and code signals':'Fieldday · artwork V1';r.market=input.sample==='zenith'||input.sample==='organizer'?'United States':'Fictional company checklist';r.options.panelZones=sampleZones(input.sample);if(Object.keys(r.options.panelZones).length)r.options.panelZoneSource='authored synthetic sample geometry';files=await Promise.all(samples[input.sample].map(async([path,role])=>({name:basename(path),role,base64:(await readFile(join(root,path))).toString('base64')})));}
       r.files=await writeInputs(r,files);
     }
     audit(r,'review_created',r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.');await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;

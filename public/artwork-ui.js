@@ -38,17 +38,22 @@ const compactText=(value,limit=52)=>{const text=String(value??'').replace(/\s+/g
 // These regions are used only to make the organizer's supplied dieline legible as a visual mockup.
 // They are never persisted as panel mappings and never participate in rule geometry or findings.
 const organizerVisualZones={
-  // Crop inside the principal lower-row panels. The dieline has a logo flap
-  // immediately above them and colored cut/crease margins around them; including
-  // those edges made the folded preview look like a chopped-up sheet.
   back:{page:1,box:[.04,.375,.335,.786]},
   left:{page:1,box:[.346,.375,.514,.786]},
   front:{page:1,box:[.528,.375,.82,.786]},
   right:{page:1,box:[.834,.375,.993,.786]},
 };
+const zenithVisualZones={
+  back:{page:1,box:[10/1200,40/800,290/1200,760/800]},
+  left:{page:1,box:[310/1200,40/800,590/1200,760/800]},
+  front:{page:1,box:[610/1200,40/800,890/1200,760/800]},
+  right:{page:1,box:[910/1200,40/800,1190/1200,760/800]}
+};
 // Preview crops never become evidence geometry without an explicit saved map.
 export function sourcePreviewZones(review){
-  return review.sample==='organizer'?structuredClone(organizerVisualZones):{};
+  if(review.sample==='organizer')return structuredClone(organizerVisualZones);
+  if(review.sample==='zenith')return structuredClone(zenithVisualZones);
+  return {};
 }
 function faceTexture(review,zone){
   const doc=artwork(review),page=doc?.pages?.find(p=>p.number===zone.page);if(!page||!zone.box)return '<span class="carton-unmapped">Panel not mapped</span>';
