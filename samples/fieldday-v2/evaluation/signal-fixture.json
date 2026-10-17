@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "file": "artwork/fieldday-signals.pdf",
+  "sha256": "a204de1a7edd7062da26d2f40d8fc5ec74d2535f9af154726934a7c5f14bb817",
+  "purpose": "Known authored signal example, not an independent benchmark.",
+  "page_2": {
+    "language_cues": [
+      "Spanish",
+      "French"
+    ],
+    "codes": [
+      "Code128",
+      "QR Code"
+    ],
+    "limits": "Translations unapproved; codes are fictional and do not establish retail or print compliance."
+  }
+}

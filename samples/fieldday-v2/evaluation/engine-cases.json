@@ -1,0 +1,23 @@
+[
+  {"id":"clean-storage-copy","group":"clean","kind":"copy","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["Refrigerate after opening."],"complete":true,"expected":"match"},
+  {"id":"clean-multisentence-storage-copy","group":"clean","kind":"copy","field":"storage_statement","reference":"Store in a cool, dry place. Once opened, keep packaging closed and eat within a month or by date shown, for best before, see base of pack.","artwork":["Store in a cool, dry place. Once","opened, keep packaging closed and eat within a month or by date shown,","for best before, see base of pack."],"complete":true,"expected":"match"},
+  {"id":"wrong-net-quantity","group":"defect","kind":"quantity","field":"net_quantity","reference":"1000 mL","artwork":["NET QUANTITY: 750 mL"],"complete":true,"netConfirmed":true,"expected":"issue"},
+  {"id":"mixed-quantity-occurrences","group":"defect","kind":"quantity","field":"net_quantity","reference":"1000 mL","artwork":["NET QUANTITY: 750 mL","NET QUANTITY: 1000 mL"],"complete":true,"netConfirmed":true,"expected":"issue"},
+  {"id":"repeated-correct-quantities","group":"clean","kind":"quantity","field":"net_quantity","reference":"1 L","artwork":["NET QUANTITY: 1000 mL","NET QUANTITY: 1 L"],"complete":true,"netConfirmed":true,"expected":"match"},
+  {"id":"equivalent-volume-units","group":"clean","kind":"quantity","field":"net_quantity","reference":"1 L","artwork":["NET QUANTITY: 1000 mL"],"complete":true,"netConfirmed":true,"expected":"match"},
+  {"id":"serving-size-excluded","group":"clean","kind":"quantity","field":"net_quantity","reference":"1000 mL","artwork":["Serving size: 200 mL","NET QUANTITY: 1000 mL"],"complete":true,"netConfirmed":true,"expected":"match"},
+  {"id":"revision-regression","group":"revision","kind":"revision","field":"storage_statement","reference":"Refrigerate after opening.","before":["Refrigerate after opening."],"after":["Keep in a cool place."],"complete":true,"expected":"new_issue"},
+  {"id":"negated-positive-copy","group":"defect","kind":"copy","field":"marketing_copy","reference":"Keep refrigerated","artwork":["Do not keep refrigerated."],"complete":true,"expected":"issue"},
+  {"id":"positive-and-negated-copy","group":"defect","kind":"copy","field":"marketing_copy","reference":"Keep refrigerated","artwork":["Keep refrigerated.","Do not keep refrigerated."],"complete":true,"expected":"issue"},
+  {"id":"obsolete-copy-complete","group":"defect","kind":"copy","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["OLD COPY: Refrigerate after opening."],"complete":true,"expected":"issue"},
+  {"id":"obsolete-copy-incomplete","group":"ambiguous","kind":"copy","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["OLD COPY: Refrigerate after opening."],"complete":false,"expected":"review"},
+  {"id":"decimal-preserved","group":"defect","kind":"copy","field":"marketing_copy","reference":"Only 1.0 g sugar","artwork":["Only 10 g sugar"],"complete":true,"expected":"issue"},
+  {"id":"punctuation-only-variation","group":"clean","kind":"copy","field":"marketing_copy","reference":"100% oat drink!","artwork":["100% oat drink"],"complete":true,"expected":"match"},
+  {"id":"word-boundary-substring","group":"defect","kind":"copy","field":"variant","reference":"Original","artwork":["Originality oat drink"],"complete":true,"expected":"issue"},
+  {"id":"missing-with-incomplete-coverage","group":"unreadable","kind":"copy","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["Oat drink"],"complete":false,"expected":"unable"},
+  {"id":"missing-with-confirmed-coverage","group":"defect","kind":"copy","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["Oat drink"],"complete":true,"expected":"issue"},
+  {"id":"conflicting-specifications","group":"ambiguous","kind":"conflict","field":"storage_statement","references":["Refrigerate after opening.","Store in a cool place."],"artwork":["Refrigerate after opening."],"complete":true,"expected":"review"},
+  {"id":"nutrition-basis-unconfirmed","group":"ambiguous","kind":"nutrition","field":"nutrition.fat_g","reference":"1.5 g","artwork":["Fat 1.5 g"],"complete":true,"expected":"review"},
+  {"id":"missing-source-fact","group":"unreadable","kind":"missing-reference","field":"storage_statement","artwork":["Refrigerate after opening."],"complete":true,"expected":"unable"},
+  {"id":"unsupported-prose-rule","group":"unreadable","kind":"uncompiled","field":"storage_statement","reference":"Refrigerate after opening.","artwork":["Refrigerate after opening."],"complete":true,"expected":"unable"}
+]

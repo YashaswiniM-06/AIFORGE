@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.packproof/
+node_modules/
+__pycache__/
+.venv/
+dist/
+*.log
+.DS_Store
+submission/*.zip

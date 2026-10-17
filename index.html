@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#f5f6f2" />
+    <meta name="description" content="PackSignal — packaging decisions with evidence attached." />
+    <title>PackSignal — Packaging review workspace</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Main navigation">
+        <a class="brand" href="#overview" aria-label="PackSignal home">
+          <span class="brand-mark">P<span>+</span></span>
+          <span class="brand-name">packproof<span class="brand-period">.</span></span>
+        </a>
+
+        <div class="workspace-switcher">
+          <span class="workspace-avatar">N</span>
+          <span class="workspace-copy"><strong>Northstar Foods</strong><small>Workspace</small></span>
+          <span class="switcher-caret">⌄</span>
+        </div>
+
+        <div class="nav-label">WORKSPACE</div>
+        <nav class="primary-nav">
+          <button class="nav-item active" data-page="overview"><span class="nav-icon">◫</span>Overview</button>
+          <button class="nav-item" data-page="reviews"><span class="nav-icon">▣</span>Reviews<span class="nav-count">1</span></button>
+          <button class="nav-item" data-page="rules"><span class="nav-icon">☷</span>Rule library</button>
+          <button class="nav-item" data-page="sources"><span class="nav-icon">▤</span>Source files</button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="local-card"><span class="local-dot"></span><span><strong>Local demo</strong><small>Sample data only</small></span></div>
+          <button class="profile-button" aria-label="User profile"><span class="profile-avatar">V</span><span><strong>Reviewer</strong><small>Quality team</small></span><span class="profile-menu">···</span></button>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="breadcrumbs"><span>Northstar Foods</span><span class="crumb-slash">/</span><span id="topbar-context">Overview</span></div>
+          <div class="topbar-actions"><span class="demo-pill"><span></span>DEMO WORKSPACE</span><button class="icon-button" aria-label="Help">?</button><span class="top-avatar">V</span></div>
+        </header>
+
+        <section id="overview-page" class="page overview-page">
+          <div class="page-heading overview-heading">
+            <div><div class="eyebrow">THURSDAY, OCTOBER 15, 2026 <span class="eyebrow-line"></span> PACKAGING QUALITY</div><h1>Good work starts<br />with <span>good proof.</span></h1><p>Every packaging decision, traced back to the source.</p></div>
+            <div class="heading-orbit" aria-hidden="true"><div class="orbit-ring ring-a"></div><div class="orbit-ring ring-b"></div><div class="orbit-core"><span>PP</span></div><i class="orbit-dot dot-a"></i><i class="orbit-dot dot-b"></i><i class="orbit-dot dot-c"></i></div>
+          </div>
+
+          <div class="metric-grid">
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">IN REVIEW</span><span class="metric-icon green-icon">↗</span></div><strong>01</strong><div class="metric-foot"><span class="status-dot status-green"></span>Artwork review active</div></article>
+            <article class="metric-card"><div class="metric-top"><span class="metric-label">CHECKS RUN</span><span class="metric-icon">⌕</span></div><strong>12</strong><div class="metric-foot">Across 1 sample artwork</div></article>
+            <article class="metric-card attention-metric"><div class="metric-top"><span class="metric-label">NEEDS ATTENTION</span><span class="metric-icon amber-icon">!</span></div><strong id="attention-total">03</strong><div class="metric-foot"><span class="status-dot status-amber"></span>2 issues · 1 human review</div></article>
+          </div>
+
+          <div class="section-heading"><div><span class="section-kicker">YOUR WORK</span><h2>Continue where you left off</h2></div><button class="text-button" data-page="reviews">All reviews <span>↗</span></button></div>
+
+          <article class="review-card">
+            <div class="review-card-art"><img src="assets/fieldday-artwork.svg" alt="Sample Fieldday oat drink package artwork" /><span class="art-file-tag">ARTWORK · V07</span></div>
+            <div class="review-card-main"><div class="review-card-meta"><span class="review-type"><span class="status-dot status-amber"></span>PRE-PRINT REVIEW</span><span class="review-date">UPDATED 12 MIN AGO</span></div><h3>Fieldday Oat Drink</h3><p>Original · 1 L pack · SKU FD-OAT-1042</p><div class="review-progress-row"><div class="mini-progress"><span></span></div><span>9 of 12 checks clear</span></div><div class="review-card-bottom"><div class="avatar-stack"><span>Q</span><span>+</span></div><span class="review-owner">Quality team · India sample market</span></div></div>
+            <div class="review-card-action"><span class="attention-count"><b>03</b> findings</span><button class="button button-dark" data-page="reviews">Open review <span>↗</span></button></div>
+          </article>
+
+          <div class="lower-grid">
+            <article class="info-panel process-panel"><div class="panel-header"><div><span class="section-kicker">THE PROOF CHAIN</span><h3>From source to sign-off</h3></div><span class="chain-icon">⌁</span></div><div class="proof-chain"><div class="chain-step"><span class="chain-number">01</span><span class="chain-symbol">▤</span><div><strong>Approved facts</strong><small>What the product is</small></div></div><span class="chain-arrow">→</span><div class="chain-step"><span class="chain-number">02</span><span class="chain-symbol">☷</span><div><strong>Requirements</strong><small>What the label must say</small></div></div><span class="chain-arrow">→</span><div class="chain-step"><span class="chain-number">03</span><span class="chain-symbol">▧</span><div><strong>Artwork proof</strong><small>What will be printed</small></div></div></div><div class="panel-footnote"><span class="tiny-check">✓</span> One connected trail. Nothing to take on trust.</div></article>
+            <article class="info-panel principles-panel"><span class="section-kicker">BUILT FOR REVIEWERS</span><h3>Know what’s certain.<br /><em>See what needs a person.</em></h3><div class="principle-list"><span><i class="principle-mark mark-match">✓</i> Exact checks where facts are clear</span><span><i class="principle-mark mark-human">↗</i> Human review when meaning is uncertain</span><span><i class="principle-mark mark-source">⌕</i> Evidence at every decision</span></div></article>
+          </div>
+          <footer class="page-footer"><span>PACKPROOF <i>·</i> PACKAGING DECISIONS WITH PROOF ATTACHED</span><span>PROTOTYPE 0.1 <b>◆</b></span></footer>
+        </section>
+
+        <section id="review-page" class="page review-page hidden">
+          <div class="review-title-row"><div><div class="breadcrumb-small"><button data-page="overview">Reviews</button><span>/</span><span>Fieldday Oat Drink</span></div><div class="title-line"><h1>Artwork review</h1><span class="review-live-badge"><i></i>IN REVIEW</span></div><p>Compare the print artwork against approved product facts and the supplied checklist.</p></div><button id="export-report" class="button button-outline">↧ <span>Export report</span></button></div>
+          <div class="product-strip"><div class="product-ident"><span class="product-monogram">F</span><div><strong>Fieldday Oat Drink</strong><small>Original · SKU FD-OAT-1042</small></div></div><span class="strip-divider"></span><div class="strip-data"><small>MARKET</small><strong>India · demo scope</strong></div><div class="strip-data"><small>ARTWORK VERSION</small><strong>V07 <span class="version-change">↗ new</span></strong></div><div class="strip-data"><small>LAST REVIEWED</small><strong>Today, 10:38 AM</strong></div><button class="more-button" aria-label="More review options">···</button></div>
+
+          <div class="review-summary"><div class="summary-score"><div class="score-ring"><span>75<small>%</small></span></div><div><strong>9 of 12 checks clear</strong><small>3 findings need a decision before sign-off</small></div></div><div class="summary-legend"><span><i class="legend-dot dot-pass"></i>9 clear</span><span><i class="legend-dot dot-issue"></i><b id="summary-issue-count">2</b> issues</span><span><i class="legend-dot dot-human"></i><b id="summary-human-count">1</b> human review</span></div><button id="view-findings" class="summary-link">Review findings <span>↓</span></button></div>
+
+          <div class="review-workspace">
+            <section id="artwork-panel" class="artwork-panel" aria-label="Artwork evidence viewer"><div class="panel-toolbar"><div><span class="section-kicker">ARTWORK EVIDENCE</span><h2>Print layout <span class="toolbar-version">V07</span></h2></div><div class="viewer-tools"><button id="zoom-out" class="viewer-tool" aria-label="Zoom out">−</button><span id="zoom-level">100%</span><button id="zoom-in" class="viewer-tool" aria-label="Zoom in">+</button><span class="tool-separator"></span><button id="fit-artwork" class="viewer-tool fit-button">Fit</button></div></div>
+              <div class="canvas-area"><div id="artwork-wrap" class="artwork-wrap"><img id="artwork-image" src="assets/fieldday-artwork.svg" alt="Fieldday oat drink label, front and back print panels"/><div id="hotspot-quantity" class="art-hotspot hotspot-quantity"><span>750 mL</span></div><div id="hotspot-claim" class="art-hotspot hotspot-claim"><span>CLAIM</span></div><div id="hotspot-storage" class="art-hotspot hotspot-storage"><span>STORAGE</span></div></div><div class="canvas-caption"><span><i class="legend-dot dot-selected"></i><span id="canvas-caption-text">Select a finding to locate evidence on artwork</span></span><button id="toggle-markers" class="markers-toggle">◎ <span>Evidence markers</span></button></div></div>
+              <div class="artwork-footer"><span><span class="file-icon">▧</span><b>fieldday_original_oat_v07.svg</b><small>2 panels · sample illustration</small></span><button id="open-artwork" class="open-file-button">Open artwork ↗</button></div>
+            </section>
+
+            <aside id="findings-panel" class="findings-panel"><div class="findings-heading"><div><span class="section-kicker">REVIEW RESULTS</span><h2>Findings <span class="findings-count" id="findings-count">03</span></h2></div><button id="finding-menu" class="more-button" aria-label="Finding options">···</button></div><div class="findings-tabs" role="tablist"><button class="filter-tab active" data-filter="all">All <span>3</span></button><button class="filter-tab" data-filter="issue">Issues <span>2</span></button><button class="filter-tab" data-filter="human">Review <span>1</span></button></div><div id="finding-list" class="finding-list" aria-live="polite"></div><div id="finding-detail" class="finding-detail"></div></aside>
+          </div>
+
+          <div class="review-bottom-note"><span class="note-shield">◇</span><span><strong>Review assist, not legal sign-off.</strong> Results are checked against the supplied sample sources. A qualified reviewer makes the final release decision.</span><button id="scope-link" class="scope-link">Review scope</button></div>
+          <footer class="page-footer"><span>PACKPROOF <i>·</i> FIELD DAY SAMPLE REVIEW</span><span>RUN PP-2026-1042 <b>◆</b></span></footer>
+        </section>
+
+        <section id="rules-page" class="page secondary-page hidden">
+          <div class="secondary-heading"><span class="section-kicker">SOURCE OF TRUTH</span><h1>Rule library</h1><p>Requirements in this prototype come from a fictional company checklist, supplied for the sample review.</p></div><div class="source-card"><div class="source-file-icon rule-file-icon">☷</div><div class="source-card-copy"><span class="source-type">SAMPLE CHECKLIST · INTERNAL</span><h2>Northstar beverage packaging checklist</h2><p>Version 1.2 · 12 checks · Sample scope: Fieldday Oat Drink, India demo market</p></div><span class="source-status"><i></i>ACTIVE IN SAMPLE</span><button class="button button-outline" data-page="reviews">View review ↗</button></div><div class="rule-list-card"><div class="rule-list-head"><span>REQUIREMENT</span><span>TYPE</span><span>CHECK METHOD</span><span>RESULT</span></div><div class="rule-row"><strong>Brand and product name match approved copy</strong><span>Approved copy</span><span>Exact text</span><em class="result-pass">✓ Clear</em></div><div class="rule-row"><strong>Net quantity matches product specification</strong><span>Product fact</span><span>Value and unit</span><em class="result-issue">! Issue found</em></div><div class="rule-row"><strong>Ingredient declaration matches specification</strong><span>Product fact</span><span>Text comparison</span><em class="result-pass">✓ Clear</em></div><div class="rule-row"><strong>Storage instruction appears on pack</strong><span>Required copy</span><span>Presence check</span><em class="result-issue">! Issue found</em></div><div class="rule-row"><strong>Marketing claims have approval record</strong><span>Claim control</span><span>Human verification</span><em class="result-human">↗ Review</em></div><div class="rule-list-foot">7 additional checks passed in this sample. This checklist is illustrative and is not a regulatory standard.</div></div><div class="source-provenance-note"><span>ⓘ</span><p><strong>Provenance is part of the rule.</strong> PackSignal keeps the original rule text, its source document, and the artwork evidence together so reviewers can inspect the basis for each result.</p></div></section>
+
+        <section id="sources-page" class="page secondary-page hidden">
+          <div class="secondary-heading"><span class="section-kicker">REVIEW INPUTS</span><h1>Source files</h1><p>Four source artifacts are linked to the active sample review. Open the review to see citations in context.</p></div><div class="sources-table"><div class="sources-table-head"><span>FILE</span><span>ROLE</span><span>VERSION</span><span>ADDED</span><span>STATUS</span></div><div class="source-file-row"><span class="source-name"><i class="file-badge badge-pdf">SVG</i><span><b>assets/fieldday-artwork.svg</b><small>Sample artwork illustration · local SVG</small></span></span><span>Artwork</span><span>V07</span><span>Today, 10:38 AM</span><em class="source-loaded">Linked</em></div><div class="source-file-row"><span class="source-name"><i class="file-badge badge-doc">JSON</i><span><b>data/product-spec.json</b><small>Approved product facts · fictional sample</small></span></span><span>Product specification</span><span>Approved 3.1</span><span>Today, 10:37 AM</span><em class="source-loaded">Linked</em></div><div class="source-file-row"><span class="source-name"><i class="file-badge badge-rule">JSON</i><span><b>data/packaging-checklist.json</b><small>Internal sample checklist · fictional</small></span></span><span>Rule set</span><span>Version 1.2</span><span>Today, 10:36 AM</span><em class="source-loaded">Linked</em></div><div class="source-file-row"><span class="source-name"><i class="file-badge badge-doc">JSON</i><span><b>data/approved-claims.json</b><small>Approved marketing claims · fictional sample</small></span></span><span>Claims register</span><span>Approved 2.0</span><span>Today, 10:36 AM</span><em class="source-loaded">Linked</em></div></div><div class="demo-data-note"><span>✳</span><div><strong>Prototype data note</strong><p>The artwork is a generated SVG sample and the product facts, checklist, and claims register are fictional JSON files. This demo runs deterministic text checks against those sources; file upload, PDF parsing, OCR, and model-based interpretation are not wired yet.</p></div></div></section>
+      </main>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    <dialog id="scope-dialog" class="scope-dialog"><button class="dialog-close" id="close-scope" aria-label="Close">×</button><span class="section-kicker">SAMPLE REVIEW SCOPE</span><h2>What this review can tell you</h2><p>This demo compares the sample artwork with fictional product facts and a user-supplied style of checklist. It does not use live regulations or certify packaging for sale.</p><div class="scope-facts"><span><b>Product</b> Fieldday Original Oat Drink</span><span><b>Market</b> India · demo only</span><span><b>Rule source</b> Northstar internal sample checklist v1.2</span><span><b>Review run</b> PP-2026-1042 · artwork V07</span></div><button class="button button-dark" id="scope-done">Got it</button></dialog>
+    <dialog id="evidence-dialog" class="scope-dialog evidence-dialog"><button class="dialog-close" id="close-evidence" aria-label="Close">×</button><span class="section-kicker">SOURCE EVIDENCE</span><h2 id="evidence-title">Evidence</h2><p id="evidence-description"></p><div id="evidence-quote" class="evidence-quote"></div><div id="evidence-location" class="evidence-location"></div><button class="button button-dark" id="evidence-done">Close evidence</button></dialog>
+    <script src="app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,29 @@
+{
+  "include": [
+    "server.mjs",
+    "package.json",
+    "requirements.txt",
+    ".env.example",
+    ".gitignore",
+    "lib",
+    "public",
+    "scripts",
+    "tests",
+    "samples/organizer",
+    "samples/fieldday-v2",
+    "README.md",
+    "CHALLENGE_REPORT.md",
+    "ROADMAP.md",
+    "DEMO_SCRIPT.md",
+    "submission/APPROACH.md",
+    "submission/ARCHITECTURE.md",
+    "submission/JUDGE_QA.md",
+    "submission/API_SETUP.md",
+    "submission/KNOWN_LIMITS.md",
+    "submission/IMPROVEMENTS.md",
+    "submission/package-files.json",
+    "submission/INPUT_FORMATS.md",
+    "submission/PackSignal-Submission-Brief.pdf",
+    "submission/example-reports"
+  ]
+}

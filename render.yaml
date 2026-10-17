@@ -1,0 +1,34 @@
+services:
+  - type: web
+    name: packsignal
+    runtime: docker
+    plan: starter
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    disk:
+      name: packsignal-data
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PACKPROOF_DATA_DIR
+        value: /var/data
+      - key: PACKPROOF_ACCESS_USER
+        value: judge
+      - key: PACKPROOF_ACCESS_PASSWORD
+        sync: false
+      - key: PACKPROOF_PUBLIC_ORIGIN
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false
+      - key: GEMINI_API_KEY_5
+        sync: false

@@ -1,0 +1,7 @@
+pypdfium2>=4.30,<6
+pypdf>=5,<7
+openpyxl>=3.1,<4
+Pillow>=10,<13
+reportlab>=4,<5
+python-docx>=1.1,<2
+zxing-cpp>=2.3,<3
