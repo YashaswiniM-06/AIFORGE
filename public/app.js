@@ -268,21 +268,31 @@ async function openReview(id) {
   history.replaceState(null, "", "#review/" + id);
   try {
     const nextReview = await api("/reviews/" + id);
-    if (current?.id !== id) {
+    const isNew = current?.id !== id;
+    if (isNew) {
       selectedFindingId = nextReview.findings?.find((item) => item.status === "issue" || item.status === "review")?.id || nextReview.findings?.[0]?.id || null;
       activeEvidenceIndex = 0;
       cartonRotation = null;
       artworkMode = "2d";
-      cartonRotation = null;
       artworkPage = 1;
       artworkZoom = 100;
       artworkViewport = { scale: 1, x: 0, y: 0 };
     }
+    const hasChanged = isNew ||
+      !current ||
+      current.status !== nextReview.status ||
+      current.aiStatus !== nextReview.aiStatus ||
+      (current.findings?.length || 0) !== (nextReview.findings?.length || 0) ||
+      (current.progress?.percent || 0) !== (nextReview.progress?.percent || 0) ||
+      (current.updatedAt !== nextReview.updatedAt);
+
     current = nextReview;
-    previousReview = current.parentId
-      ? await api("/reviews/" + current.parentId)
-      : null;
-    renderReview();
+    if (hasChanged) {
+      previousReview = current.parentId
+        ? await api("/reviews/" + current.parentId)
+        : null;
+      renderReview();
+    }
     if (["queued", "processing"].includes(current.status) || ["pending", "running"].includes(current.aiStatus))
       timer = setTimeout(() => openReview(id), 1300);
   } catch (e) {
@@ -756,10 +766,6 @@ document.addEventListener("change", (event) => {
     artworkPage = Number(event.target.value) || 1;
     artworkZoom = 100;
     artworkViewport = { scale: 1, x: 0, y: 0 };
-    renderReview();
-  }
-  if (event.target.matches("[data-carton-rotation]")) {
-    cartonRotation = Number(event.target.value) || 0;
     renderReview();
   }
   if (event.target.id === "files") {

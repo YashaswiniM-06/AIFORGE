@@ -165,7 +165,6 @@
   transform-origin: 50% 50%;
   transition: transform .36s cubic-bezier(.2,.8,.2,1);
   will-change: transform;
-  backface-visibility: hidden;
 }
 .carton-studio .carton-scene.dragging .carton-model,
 .carton-scene.dragging .carton-model,

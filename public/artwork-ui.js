@@ -304,7 +304,7 @@ function mountCartonDrag(container,onRotation){
     if(disposed||!scene.isConnected){cleanup();return;}
     if(!playing)return;
     const elapsed=lastTime?Math.min(50,time-lastTime):0;lastTime=time;
-    rotate(angle+elapsed*.014,tilt,{immediate:true});frame=requestAnimationFrame(tick);
+    rotate(angle+elapsed*.032,tilt,{immediate:true});frame=requestAnimationFrame(tick);
   };
   const fit=()=>{
     const width=Number(scene.dataset.cartonWidth)||214,height=Number(scene.dataset.cartonHeight)||282,depth=Number(scene.dataset.cartonDepth)||64;
@@ -312,22 +312,30 @@ function mountCartonDrag(container,onRotation){
     const scale=Math.min(1.3,availableWidth/(Math.hypot(width,depth)+20),availableHeight/(Math.hypot(width,height,depth)+20));
     scene.style.setProperty('--carton-fit',String(Math.max(.35,scale)));
   };
+  const onMove=event=>{
+    if(!drag||(event.pointerId!==undefined&&event.pointerId!==drag.pointerId))return;
+    rotate(drag.angle+(event.clientX-drag.x)*.5,Math.max(-65,Math.min(65,drag.tilt-(event.clientY-drag.y)*.35)),{immediate:true});
+  };
   const stop=()=>{
     if(drag){
       try{if(scene.hasPointerCapture?.(drag.pointerId))scene.releasePointerCapture(drag.pointerId);}catch{}
     }
     drag=null;
     scene.classList.remove('dragging');
+    window.removeEventListener('pointermove',onMove);
+    window.removeEventListener('pointerup',stop);
+    window.removeEventListener('pointercancel',stop);
   };
   const reset=()=>{setPlaying(false);rotate(angle+wrap(-28-angle),-10);};
   scene.addEventListener('pointerdown',event=>{
     if(event.button!==0||event.target.closest('button,a,input'))return;
-    setPlaying(false);drag={x:event.clientX,y:event.clientY,angle,tilt,pointerId:event.pointerId};scene.classList.add('dragging');try{scene.setPointerCapture?.(event.pointerId);}catch{}scene.focus({preventScroll:true});event.preventDefault();
+    setPlaying(false);drag={x:event.clientX,y:event.clientY,angle,tilt,pointerId:event.pointerId};scene.classList.add('dragging');try{scene.setPointerCapture?.(event.pointerId);}catch{}
+    window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',stop);
+    window.addEventListener('pointercancel',stop);
+    scene.focus({preventScroll:true});event.preventDefault();
   });
-  scene.addEventListener('pointermove',event=>{
-    if(!drag||event.pointerId!==drag.pointerId)return;
-    rotate(drag.angle+(event.clientX-drag.x)*.5,Math.max(-65,Math.min(65,drag.tilt-(event.clientY-drag.y)*.35)),{immediate:true});
-  });
+  scene.addEventListener('pointermove',onMove);
   scene.addEventListener('pointerup',stop);scene.addEventListener('pointercancel',stop);scene.addEventListener('lostpointercapture',stop);
   scene.addEventListener('keydown',event=>{
     if(event.target!==scene)return;
@@ -357,6 +365,7 @@ function mountCartonDrag(container,onRotation){
   const observer=globalThis.ResizeObserver?new ResizeObserver(fit):null;observer?.observe(scene);window.addEventListener('resize',fit);
   function cleanup(){
     if(disposed)return;disposed=true;
+    stop();
     cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener('resize',fit);document.removeEventListener('visibilitychange',visibility);reduced?.removeEventListener?.('change',motion);
   }
   releaseCartonInteraction=cleanup;fit();motion();rotate(angle,tilt,{immediate:true});
