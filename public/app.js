@@ -44,6 +44,7 @@ let status = {},
   cartonRotation = null,
   cartonTilt = -7,
   artworkZoom = 100,
+  artworkViewport = { scale: 1, x: 0, y: 0 },
   showEvidenceBoxes = true,
   showPanelZones = false,
   timer = null,
@@ -274,6 +275,8 @@ async function openReview(id) {
       artworkMode = "2d";
       cartonRotation = null;
       artworkPage = 1;
+      artworkZoom = 100;
+      artworkViewport = { scale: 1, x: 0, y: 0 };
     }
     current = nextReview;
     previousReview = current.parentId
@@ -327,6 +330,8 @@ function renderReview() {
     previous: previousReview,
     onProof: proof,
     onRotation: (angle, tilt) => { cartonRotation = angle; cartonTilt = tilt; },
+    viewport: artworkViewport,
+    onViewport: next => { artworkViewport = next; artworkZoom = Math.round(next.scale * 100); },
   });
   mountPanelZoneMapper($(".review-body"), r);
 }
@@ -674,6 +679,8 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "select-finding") {
       selectedFindingId = b.dataset.id;
+      artworkZoom = 100;
+      artworkViewport = { scale: 1, x: 0, y: 0 };
       const requestedEvidence = Number(b.dataset.evidenceIndex);
       activeEvidenceIndex = Number.isInteger(requestedEvidence) ? requestedEvidence : 0;
       cartonRotation = null;
@@ -686,6 +693,8 @@ document.addEventListener("click", async (event) => {
     }
     if (action === "select-evidence") {
       activeEvidenceIndex = Number(b.dataset.index);
+      artworkZoom = 100;
+      artworkViewport = { scale: 1, x: 0, y: 0 };
       cartonRotation = null;
       cartonTilt = -7;
       const finding = current.findings.find((item) => item.id === selectedFindingId);
@@ -745,6 +754,8 @@ document.addEventListener("input", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-workbench-page]")) {
     artworkPage = Number(event.target.value) || 1;
+    artworkZoom = 100;
+    artworkViewport = { scale: 1, x: 0, y: 0 };
     renderReview();
   }
   if (event.target.matches("[data-carton-rotation]")) {

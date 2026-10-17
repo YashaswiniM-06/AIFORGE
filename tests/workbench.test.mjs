@@ -28,7 +28,7 @@ test('2D workbench shows the located artwork and red-green source comparison',()
 
 test('3D fold context maps reviewer panels and exposes selectable evidence pins',()=>{
   const html=workbenchArtwork(review,finding,{mode:'3d',pageNumber:1,activeEvidenceIndex:0,cartonRotation:45});
-  assert.match(html,/class="carton-rotate">Rotate/);
+  assert.match(html,/aria-label="Rotate illustrative carton"/);
   assert.match(html,/data-carton-rotation/);
   assert.match(html,/rotateY\(45deg\)/);
   assert.match(html,/data-carton-scene/);
@@ -36,43 +36,56 @@ test('3D fold context maps reviewer panels and exposes selectable evidence pins'
   assert.match(html,/carton-pin issue/);
   assert.match(html,/carton-pin issue selected/);
   assert.match(html,/aria-pressed="true"/);
-  assert.match(html,/Illustrative 3D context/);
-  assert.match(html,/LOCATED ON · FRONT/);
+  assert.match(html,/Carton proportions are illustrative/);
+  assert.match(html,/Evidence on Front/);
   assert.doesNotMatch(html,/carton-context-reveal|carton-focus-strip|carton-replay/);
   assert.match(html,/aria-label="Front panel"/);
-  assert.match(html,/Select a mapped finding pin to inspect evidence/);
-  assert.match(html,/Cut, crease, and glue geometry are not inferred/i);
+  assert.match(html,/aria-label="Open Net quantity mismatch"/);
+  assert.match(html,/Use 2D proof for exact artwork inspection/);
 });
 
 test('3D context does not claim a precise panel location when a finding has no mapped artwork box',()=>{
   const html=workbenchArtwork(review,{...finding,evidence:[]},{mode:'3d'});
-  assert.match(html,/LOCATION NOT MAPPED · FRONT/);
-  assert.match(html,/Illustrative 3D context/);
+  assert.match(html,/Mapped face Front/);
+  assert.doesNotMatch(html,/Evidence on Front/);
+  assert.match(html,/Carton proportions are illustrative/);
 });
 
 test('3D context keeps an interactive neutral carton for a non-sample review with no mapped artwork',()=>{
   const unmapped={...review,options:{panelZones:{}}};
   const html=workbenchArtwork(unmapped,finding,{mode:'3d'});
-  assert.match(html,/carton-stage unmapped-preview/);
+  assert.match(html,/carton-stage carton-studio unmapped-preview/);
   assert.match(html,/data-carton-rotation/);
   assert.match(html,/data-carton-face="front"/);
-  assert.match(html,/NO ARTWORK PANELS MAPPED/);
-  assert.match(html,/No artwork texture is inferred/);
+  assert.match(html,/Artwork faces not mapped/);
+  assert.match(html,/Artwork not mapped/);
+  assert.doesNotMatch(html,/<img[^>]+Mapped /);
   assert.match(html,/Map faces →/);
 });
 
 test('organizer sample gets a non-persistent visual carton mockup from complete panel crops',()=>{
   const sample={...review,sample:'organizer',options:{panelZones:{}}};
+  const before=structuredClone(sample);
   const html=workbenchArtwork(sample,finding,{mode:'3d'});
   assert.match(html,/carton-face carton-front preview-only/);
   assert.match(html,/carton-face carton-back preview-only/);
   assert.match(html,/carton-face carton-right preview-only/);
-  assert.match(html,/ILLUSTRATIVE SAMPLE PREVIEW · FACE MAPPING NOT SAVED/);
-  assert.match(html,/not saved panel geometry and not used to calculate findings/);
+  assert.match(html,/Organizer artwork · illustrative fold/);
+  assert.match(html,/preview does not change review findings/);
+  assert.deepEqual(sample,before,'visual preview must not save geometry or change findings');
   assert.match(html,/Visual sample · 0 geometry maps/);
-  assert.match(html,/--carton-w:198px;--carton-h:260px;--carton-d:58px/);
-  assert.match(html,/rotateY\(-22deg\)/);
-  assert.match(html,/style="width:342\.4657\d+%;height:317\.4603\d+%;left:-180\.8219\d+%;top:-117\.4603\d+%"/);
+  const dimensions=html.match(/--carton-w:([\d.]+)px;--carton-h:([\d.]+)px;--carton-d:([\d.]+)px/);
+  assert.ok(dimensions,'carton geometry is supplied');
+  assert.match(html,/rotateY\(-28deg\)/);
+  const crop=html.match(/alt="Mapped Front artwork panel" style="width:([\d.]+)%;height:([\d.]+)%;left:([\d.-]+)%;top:([\d.-]+)%"/);
+  assert.ok(crop,'front face uses a crop from the supplied image');
+  const [,cropWidth,cropHeight,,cropTop]=crop.map(Number);
+  const top=-cropTop/cropHeight,bottom=(100-cropTop)/cropHeight;
+  assert.ok(top>.35&&top<.4,'front crop begins below the logo flap');
+  assert.ok(bottom>.78&&bottom<.81,'front crop includes the full lower panel');
+  const page=sample.documents[0].pages[0];
+  const sourceRatio=(100/cropWidth*page.width)/(100/cropHeight*page.height);
+  assert.ok(Math.abs(Number(dimensions[1])/Number(dimensions[2])-sourceRatio)<.015,'carton front preserves source crop aspect ratio');
   assert.doesNotMatch(html,/carton-pin /);
 });
 
@@ -83,7 +96,9 @@ test('the fold model renders all six explicitly mapped carton faces',()=>{
   ].map(([name,box])=>[name,{page:1,box}]))}};
   const html=workbenchArtwork(mapped,finding,{mode:'3d'});
   for(const face of ['front','back','left','right','top','bottom'])assert.match(html,new RegExp(`carton-face carton-${face} mapped`));
-  assert.match(html,/Side depth follows the reviewer-drawn side panel/);
+  assert.match(html,/Proportions follow your mapped faces/);
+  assert.equal((html.match(/<img[^>]+alt="Mapped /g)||[]).length,6);
+  for(const face of ['Front','Back','Left side','Right side','Top','Bottom'])assert.ok(html.includes(`alt="Mapped ${face} artwork panel"`));
 });
 
 test('2D prepress HUD includes calibrated PDF coordinates, layer controls, zoom and source hash state',()=>{

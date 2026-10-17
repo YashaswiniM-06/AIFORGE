@@ -1,3 +1,4 @@
+import { mountViewport } from "./artwork-viewport.js";
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const label={match:'Matches reference',issue:'Issue found',review:'Human review',unable:'Unable to verify'};
 const artwork=review=>review.documents?.find(d=>d.role==='artwork');
@@ -16,13 +17,20 @@ export function artworkMap(review,{page=1}={}){
   const current=doc.pages.find(p=>p.number===page)||doc.pages[0],regions=evidenceFor(review,current.number),located=regions.length,unlocated=(review.findings||[]).filter(f=>!f.evidence?.some(e=>e.role==='artwork'&&e.box)).length;
   return `<section class="artwork-map panel" data-artwork-map><div class="artwork-map-head"><div><div class="eyebrow">ARTWORK CHECK COVERAGE</div><h3>See what each supported check touched</h3><p class="subtle">Color represents the outcome of a located check. It is not a confidence score, release grade, or a claim that uncolored artwork was checked.</p></div><label class="field compact"><span>Artwork page</span><select data-art-page>${doc.pages.map(p=>`<option value="${p.number}" ${p.number===current.number?'selected':''}>Page ${p.number}</option>`).join('')}</select></label></div><div class="coverage-legend" aria-label="Check coverage legend"><span class="map-key match">Matched check</span><span class="map-key review">Human review</span><span class="map-key issue">Issue</span><span class="map-key neutral">No located check</span></div><div class="coverage-stage"><img src="${image(review,current)}" alt="Artwork page ${current.number} with check-coverage overlays">${regions.map(r=>`<button type="button" class="coverage-region ${r.status}" data-action="proof" data-id="${esc(r.id)}" style="left:${r.box[0]*100}%;top:${r.box[1]*100}%;width:${(r.box[2]-r.box[0])*100}%;height:${(r.box[3]-r.box[1])*100}%" aria-label="${esc(label[r.status])}: ${esc(r.title)}"><span>${esc(r.status==='match'?'✓':r.status==='issue'?'!':'?')}</span></button>`).join('')}</div><p class="subtle coverage-summary">${located} located finding${located===1?'':'s'} on this page. ${unlocated} finding${unlocated===1?'':'s'} without a precise artwork region remain listed in Findings.</p></section>`;
 }
+function viewportToolbar({spotlight=false,zoom=100,hasFocus=false}={}){
+  return `<div class="artwork-navigation ${spotlight?'spotlight-navigation':''}" aria-label="Artwork navigation">
+    <div class="artwork-zoom-group"><button type="button" class="viewer-icon-button" data-viewport-step="-0.25" aria-label="Zoom out" title="Zoom out">−</button>
+    <label class="hud-zoom"><span class="sr-only">Zoom</span><input type="range" min="100" max="400" step="1" value="${Math.max(100,Math.min(400,zoom))}" ${spotlight?'data-proof-zoom':'data-workbench-zoom'} aria-label="${spotlight?'Artwork spotlight zoom':'Artwork zoom'}"><output>${Math.round(zoom)}%</output></label>
+    <button type="button" class="viewer-icon-button" data-viewport-step="0.25" aria-label="Zoom in" title="Zoom in">+</button></div>
+    <div class="artwork-view-actions"><button type="button" data-viewport-fit>Fit page</button><button type="button" data-viewport-focus ${hasFocus?'':'disabled'}>Focus evidence</button></div>
+    <div class="artwork-pan-buttons" role="group" aria-label="Pan artwork"><button type="button" data-viewport-pan="-1,0" aria-label="Pan left" title="Pan left">←</button><button type="button" data-viewport-pan="0,-1" aria-label="Pan up" title="Pan up">↑</button><button type="button" data-viewport-pan="0,1" aria-label="Pan down" title="Pan down">↓</button><button type="button" data-viewport-pan="1,0" aria-label="Pan right" title="Pan right">→</button></div>
+  </div>`;
+}
 export function findingVisual(review,finding){
   const doc=artwork(review),proof=finding.evidence?.find(e=>e.role==='artwork'&&e.page&&Array.isArray(e.box));if(!doc||!proof)return `<section class="visual-diff unavailable"><h3>Visual comparison</h3><p class="subtle">No precise artwork location was extracted for this finding. The source and observed values below remain the evidence to inspect.</p></section>`;
   const page=doc.pages.find(p=>p.number===proof.page);if(!page)return '';
-  const [x0,y0,x1,y1]=proof.box;const different=finding.status==='issue';
-  const zoom=Math.min(3.2,Math.max(1.5,Math.min(.82/Math.max(.02,x1-x0),.62/Math.max(.02,y1-y0))));
-  const tx=50-((x0+x1)/2)*zoom*100,ty=50-((y0+y1)/2)*zoom*100;
-  return `<section class="visual-diff"><div><div class="eyebrow">VISUAL COPY COMPARISON</div><h3>${different?'Observed copy and supplied reference':'Located artwork evidence'}</h3><p class="subtle">The artwork is unchanged. The green label is supplied reference text for inspection, not an approved replacement.</p></div><div class="proof-spotlight-toolbar"><span>Evidence spotlight</span><label>Zoom <input type="range" min="100" max="400" step="10" value="${Math.round(zoom*100)}" data-proof-zoom aria-label="Artwork spotlight zoom"><output>${Math.round(zoom*100)}%</output></label><button type="button" class="textbutton" data-proof-reset>Reset</button></div><div class="proof-spotlight-frame diff-stage" style="--page-ratio:${Number(page.width)/Math.max(1,Number(page.height))}" data-proof-spotlight data-center-x="${(x0+x1)/2}" data-center-y="${(y0+y1)/2}" data-zoom="${zoom}" data-initial-zoom="${zoom}"><div class="proof-spotlight-content" data-proof-spotlight-content style="transform:translate(${tx}%,${ty}%) scale(${zoom})"><img src="${image(review,page)}" alt="Artwork page ${page.number}"><div class="spotlight-highlight" data-trace-target style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>OBSERVED ARTWORK</span></div>${different?`<div class="diff-reference" style="left:${Math.min(72,x1*100+2)}%;top:${Math.min(82,y0*100)}%"><small>REFERENCE COPY</small><b>${esc(finding.expected)}</b></div>`:''}</div></div><div class="diff-values"><div class="observed"><small>Observed artwork text</small><p>${esc(finding.observed||'Not detected')}</p></div><div class="reference"><small>Supplied reference</small><p>${esc(finding.expected||'No value')}</p></div></div></section>`;
+  const [x0,y0,x1,y1]=proof.box;
+  return `<section class="visual-diff"><div><div class="eyebrow">VISUAL COPY COMPARISON</div><h3>${finding.status==='issue'?'Observed copy and supplied reference':'Located artwork evidence'}</h3><p class="subtle">Inspect the highlighted source artwork. Drag to pan, or use the arrows below.</p></div><div class="proof-spotlight-frame diff-stage" tabindex="0" role="group" aria-label="Evidence spotlight. Drag or use arrow keys to pan. Plus and minus zoom. Home fits the page." data-proof-spotlight data-start-focused data-page-width="${page.width}" data-page-height="${page.height}" data-focus-box="${proof.box.join(',')}"><div class="proof-spotlight-content" data-proof-spotlight-content><img src="${image(review,page)}" draggable="false" alt="Artwork page ${page.number}"><div class="spotlight-highlight" data-trace-target style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>OBSERVED ARTWORK</span></div></div></div>${viewportToolbar({spotlight:true,hasFocus:true})}<div class="diff-values"><div class="observed"><small>Observed artwork text</small><p>${esc(finding.observed||'Not detected')}</p></div><div class="reference"><small>Supplied reference</small><p>${esc(finding.expected||'No value')}</p></div></div></section>`;
 }
 const faceLabels={front:'Front',back:'Back',left:'Left side',right:'Right side',top:'Top',bottom:'Bottom'};
 const findingSymbols={issue:'!',review:'?',unable:'—',match:'✓'};
@@ -33,10 +41,10 @@ const organizerVisualZones={
   // Crop inside the principal lower-row panels. The dieline has a logo flap
   // immediately above them and colored cut/crease margins around them; including
   // those edges made the folded preview look like a chopped-up sheet.
-  back:{page:1,box:[.04,.37,.33,.685]},
-  left:{page:1,box:[.346,.37,.514,.685]},
-  front:{page:1,box:[.528,.37,.82,.685]},
-  right:{page:1,box:[.834,.37,.993,.685]},
+  back:{page:1,box:[.04,.375,.335,.786]},
+  left:{page:1,box:[.346,.375,.514,.786]},
+  front:{page:1,box:[.528,.375,.82,.786]},
+  right:{page:1,box:[.834,.375,.993,.786]},
 };
 function faceTexture(review,zone){
   const doc=artwork(review),page=doc?.pages?.find(p=>p.number===zone.page);if(!page||!zone.box)return '<span class="carton-unmapped">Panel not mapped</span>';
@@ -85,21 +93,21 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
     const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
     const samplePreview=review.sample==='organizer'&&mappedCount===0;
     const visualZones=samplePreview?organizerVisualZones:zones;
-    const dims=samplePreview?{width:198,height:260,depth:58,measured:false}:foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:-22,tilt=Number.isFinite(cartonTilt)?cartonTilt:-7;
+    const dims=foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:-28,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
     const faceClasses={front:'carton-front',back:'carton-back',left:'carton-left',right:'carton-right',top:'carton-top',bottom:'carton-bottom'};
     const faces=Object.entries(faceClasses).map(([name,css])=>{
       const zone=visualZones[name]?.box?{...visualZones[name],name}:null;
       const reviewerMapped=Boolean(zones[name]?.box);
       const faceState=reviewerMapped?'mapped':samplePreview&&zone?'preview-only':'unmapped';
-      return `<div class="carton-face ${css} ${faceState}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>map artwork</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}</div>`;
+      return `<div class="carton-face ${css} ${faceState}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}</div>`;
     }).join('');
     const contextName=contextZone?(faceLabels[contextZone[0]]||contextZone[0]):'';
-    const location=samplePreview?'ILLUSTRATIVE SAMPLE PREVIEW · FACE MAPPING NOT SAVED':contextZone?`${selectedPanelFound?'LOCATED ON':'LOCATION NOT MAPPED'} · ${contextName.toUpperCase()}`:'NO ARTWORK PANELS MAPPED';
-    const prompt=!mappedCount
-      ?`<div class="carton-map-prompt ${samplePreview?'sample-preview-note':''}"><div><b>${samplePreview?'Organizer artwork visual preview':'Map artwork faces'}</b><span>${samplePreview?'Visible crops are for visual context only; draw face zones to enable checklist geometry checks.':'Map front, back, or side panels to place supplied artwork on the carton.'}</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
+    const location=samplePreview?'Organizer artwork · illustrative fold':contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
+    const prompt=!mappedCount&&!samplePreview
+      ?`<div class="carton-map-prompt"><div><b>Bring your artwork onto the package</b><span>Map the supplied front, back, and side panels to preview this carton.</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
       :'';
-    const depthNote=mappedCount&&dims.measured?'Side depth follows the reviewer-drawn side panel.':'Side depth is estimated until a side panel is mapped.';
-    visual=`<div class="carton-stage ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-scene" data-carton-scene aria-label="Drag to rotate the carton. Select a mapped finding pin to inspect evidence."><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;--carton-angle:${angle}deg;--carton-tilt:${tilt}deg;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to rotate · use the slider for a precise angle</span></div>${prompt}<p class="carton-location">${location}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p><div class="carton-controls"><label class="carton-rotate">Rotate <input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${angle}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset view</button></div>${mappedCount?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Human review</span><span class="match">✓ Match</span><span class="unable">— Unable</span></div>':''}<p class="carton-caption">${samplePreview?'Visual-only crops from the supplied organizer dieline; not saved panel geometry and not used to calculate findings.':`Illustrative 3D context. ${depthNote} No artwork texture is inferred for unmapped faces.`} The source PDF stays unchanged. Cut, crease, and glue geometry are not inferred. Use 2D proof for exact inspection.</p></div>`;
+    const depthNote=mappedCount&&dims.measured?'Proportions follow your mapped faces.':'Carton proportions are illustrative.';
+    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${mappedCount?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote} Use 2D proof for exact artwork inspection.</p></div>`;
   }else{
     const regions=artworkEvidence.filter(({item})=>item.page===page.number&&Array.isArray(item.box));
     const issue=finding?.status==='issue';
@@ -108,7 +116,16 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
     const pageZones=Object.entries(zones).filter(([,zone])=>zone.page===page.number&&zone.box);
     const imageUnit=page.unit==='pt'||(!page.unit&&/\.pdf$/i.test(doc.name||''))?'pt':'px';
     const hash=doc.sha256||'';
-    visual=`<div class="workbench-art-frame ${showBoxes?'':'hide-boxes'} ${showZones?'':'hide-zones'}" data-workbench-frame data-zoom="${Math.max(100,Math.min(300,Number(zoom)||100))}" data-unit="${imageUnit}" data-page-width="${Number(page.width)||0}" data-page-height="${Number(page.height)||0}" style="aspect-ratio:${page.width||1200}/${page.height||860}"><div class="workbench-art-content" data-workbench-image><img src="${image(review,page)}" alt="Original artwork page ${page.number}">${pageZones.map(([name,zone])=>`<div class="workbench-zone-overlay ${esc(name)}" style="left:${zone.box[0]*100}%;top:${zone.box[1]*100}%;width:${(zone.box[2]-zone.box[0])*100}%;height:${(zone.box[3]-zone.box[1])*100}%"><span>${esc(faceLabels[name]||name)} panel zone</span></div>`).join('')}${regions.map(({item,index})=>`<button type="button" class="workbench-region ${finding.status} ${index===activeEvidenceIndex?'selected':''}" data-action="select-evidence" data-index="${index}" style="left:${item.box[0]*100}%;top:${item.box[1]*100}%;width:${(item.box[2]-item.box[0])*100}%;height:${(item.box[3]-item.box[1])*100}%" aria-label="Inspect ${esc(item.quote||finding.title)}"><span>${index===activeEvidenceIndex?'Selected':'Evidence'}</span></button>`).join('')}${issue&&selectedBox?`<div class="workbench-diff-card" style="left:${diffLeft}%;top:${Math.min(68,selectedBox[1]*100)}%"><div class="workbench-diff-actual"><small>ARTWORK SAYS</small><b title="${esc(selected.item.quote||finding.observed||'Not detected')}">${esc(compactText(selected.item.quote||finding.observed||'Not detected'))}</b></div><span class="workbench-diff-arrow">→</span><div class="workbench-diff-reference"><small>SUPPLIED SOURCE</small><b title="${esc(finding.expected||'Not specified')}">${esc(compactText(finding.expected||'Not specified'))}</b></div></div>`:''}</div></div><div class="prepress-hud"><label class="hud-zoom">Zoom <input type="range" min="100" max="300" step="10" value="${Math.max(100,Math.min(300,Number(zoom)||100))}" data-workbench-zoom aria-label="Artwork zoom"><output>${Math.max(100,Math.min(300,Number(zoom)||100))}%</output></label><label class="hud-layer"><input type="checkbox" data-layer-boxes ${showBoxes?'checked':''}> Evidence boxes</label><label class="hud-layer" title="Reviewer-drawn regions, not automatically detected cut or crease lines"><input type="checkbox" data-layer-zones ${showZones?'checked':''}> Panel zones</label><span class="hud-coordinate" data-cursor-coordinate> X — · Y — </span><span class="hud-hash" data-source-hash data-hash="${esc(hash)}" data-document-id="${esc(doc.id)}">${hash?'Checking SHA-256…':'Source hash unavailable'}</span></div><p class="workbench-art-caption">Original supplied artwork · Page ${page.number} · The 2D proof is unaltered; toggle reviewer-drawn zones only when needed.</p>`;
+    visual=`<div class="proof-surface-label"><span><i></i> ORIGINAL ARTWORK</span><span>Page ${page.number} / ${doc.pages.length}</span></div>
+    <div class="workbench-art-frame ${showBoxes?'':'hide-boxes'} ${showZones?'':'hide-zones'}" tabindex="0" role="group" aria-label="Artwork canvas. Drag or use arrow keys to pan when zoomed. Plus and minus zoom. Home fits the page." data-workbench-frame data-zoom="${Math.max(100,Math.min(400,Number(zoom)||100))}" data-unit="${imageUnit}" data-page-width="${Number(page.width)||0}" data-page-height="${Number(page.height)||0}" ${selectedBox?`data-focus-box="${selectedBox.join(',')}"`:''}>
+      <div class="workbench-art-content" data-workbench-image><img src="${image(review,page)}" draggable="false" alt="Original artwork page ${page.number}">
+      ${pageZones.map(([name,zone])=>`<div class="workbench-zone-overlay ${esc(name)}" style="left:${zone.box[0]*100}%;top:${zone.box[1]*100}%;width:${(zone.box[2]-zone.box[0])*100}%;height:${(zone.box[3]-zone.box[1])*100}%"><span>${esc(faceLabels[name]||name)} panel zone</span></div>`).join('')}
+      ${regions.map(({item,index})=>`<button type="button" class="workbench-region ${finding.status} ${index===activeEvidenceIndex?'selected':''}" data-action="select-evidence" data-index="${index}" style="left:${item.box[0]*100}%;top:${item.box[1]*100}%;width:${(item.box[2]-item.box[0])*100}%;height:${(item.box[3]-item.box[1])*100}%" aria-label="Inspect ${esc(item.quote||finding.title)}"><span>${index===activeEvidenceIndex?'Selected':'Evidence'}</span></button>`).join('')}
+      ${issue&&selectedBox?`<div class="workbench-diff-card" style="left:${diffLeft}%;top:${Math.min(68,selectedBox[1]*100)}%"><div class="workbench-diff-actual"><small>ARTWORK SAYS</small><b title="${esc(selected.item.quote||finding.observed||'Not detected')}">${esc(compactText(selected.item.quote||finding.observed||'Not detected'))}</b></div><span class="workbench-diff-arrow">→</span><div class="workbench-diff-reference"><small>SUPPLIED SOURCE</small><b title="${esc(finding.expected||'Not specified')}">${esc(compactText(finding.expected||'Not specified'))}</b></div></div>`:''}
+      </div><span class="artwork-gesture-hint">Drag to pan · pinch to zoom · double-click to fit</span>
+    </div>
+    ${viewportToolbar({zoom:Number(zoom)||100,hasFocus:Boolean(selectedBox)})}
+    <div class="prepress-hud"><label class="hud-layer"><input type="checkbox" data-layer-boxes ${showBoxes?'checked':''}> Evidence boxes</label><label class="hud-layer" title="Reviewer-drawn regions"><input type="checkbox" data-layer-zones ${showZones?'checked':''}> Panel zones</label><span class="hud-coordinate" data-cursor-coordinate>X — · Y —</span><span class="hud-hash" data-source-hash data-hash="${esc(hash)}" data-document-id="${esc(doc.id)}">${hash?'Checking SHA-256…':'Source hash unavailable'}</span></div><p class="workbench-art-caption">The 2D proof is unaltered. Drag, scroll, or use the arrows to explore at any zoom.</p>`;
   }
   return `<section class="workbench-artwork" aria-label="Artwork review surface"><div class="workbench-viewer-head"><div class="segmented-control" role="group" aria-label="Artwork view"><button class="${mode==='2d'?'active':''}" data-action="workbench-mode" data-mode="2d" aria-pressed="${mode==='2d'}">2D proof</button><button class="${mode==='3d'?'active':''}" data-action="workbench-mode" data-mode="3d" aria-pressed="${mode==='3d'}">3D context</button></div>${mode==='2d'?`<label class="workbench-page-select">Artwork page<select data-workbench-page>${pageOptions.map(n=>`<option value="${n}" ${n===page.number?'selected':''}>Page ${n}</option>`).join('')}</select></label>`:`<span class="workbench-page-select">${review.sample==='organizer'&&!Object.values(zones).some(zone=>zone?.box)?'Visual sample · 0 geometry maps':`Mapped faces: ${Object.values(zones).filter(zone=>zone.box).length}`}</span>`}</div>${visual}</section>`;
 }
@@ -119,14 +136,6 @@ export function revisionVisual(current,previous){
 }
 const sourceHashChecks=new Map();
 function hashHex(buffer){return [...new Uint8Array(buffer)].map(byte=>byte.toString(16).padStart(2,'0')).join('');}
-function applySpotlight(frame,scale){
-  const content=frame?.querySelector('[data-proof-spotlight-content]');if(!frame||!content)return;
-  const x=Number(frame.dataset.centerX)||.5,y=Number(frame.dataset.centerY)||.5;
-  const tx=50-x*scale*100,ty=50-y*scale*100;
-  content.style.transform=`translate(${tx}%,${ty}%) scale(${scale})`;
-  frame.dataset.zoom=String(scale);
-  const output=frame.parentElement.querySelector('[data-proof-zoom]')?.parentElement.querySelector('output');if(output)output.textContent=`${Math.round(scale*100)}%`;
-}
 function verifyDisplayedSource(container,review){
   const badge=container.querySelector('[data-source-hash]');if(!badge)return;
   const expected=badge.dataset.hash,documentId=badge.dataset.documentId;
@@ -146,11 +155,9 @@ function verifyDisplayedSource(container,review){
   });
 }
 function mountSpotlight(container){
-  const frame=container.querySelector('[data-proof-spotlight]');if(!frame||frame.dataset.mounted)return;frame.dataset.mounted='true';
-  const slider=container.querySelector('[data-proof-zoom]');
-  applySpotlight(frame,Number(slider?.value||frame.dataset.zoom*100)/100);
-  slider?.addEventListener('input',()=>applySpotlight(frame,Number(slider.value)/100));
-  container.querySelector('[data-proof-reset]')?.addEventListener('click',()=>{const box=frame.parentElement.querySelector('[data-proof-zoom]'),scale=Number(frame.dataset.initialZoom)||1.5;if(box)box.value=Math.round(scale*100);applySpotlight(frame,scale);});
+  const frame=container.querySelector('[data-proof-spotlight]');if(!frame)return;
+  const controls=frame.closest('.visual-diff'),focus=frame.dataset.focusBox?.split(',').map(Number);
+  mountViewport({frame,content:frame.querySelector('[data-proof-spotlight-content]'),controls,slider:controls.querySelector('[data-proof-zoom]'),focus});
 }
 function mountTraceConnector(container){
   const grid=container.querySelector('[data-proof-grid]');if(!grid||grid.dataset.connectorMounted)return;grid.dataset.connectorMounted='true';
@@ -170,32 +177,102 @@ function mountTraceConnector(container){
   container.querySelectorAll('[data-trace-source],[data-trace-target]').forEach(node=>observer?.observe(node));
   const clean=()=>{observer?.disconnect();window.removeEventListener('resize',update);};
   window.addEventListener('resize',update);container.closest('dialog')?.addEventListener('close',clean,{once:true});
-  container.querySelector('[data-proof-zoom]')?.addEventListener('input',()=>requestAnimationFrame(update));
+  container.querySelector('[data-proof-spotlight]')?.addEventListener('viewportchange',()=>requestAnimationFrame(update));
 }
+let releaseCartonInteraction=null;
 function mountCartonDrag(container,onRotation){
-  const scene=container.querySelector('[data-carton-scene]'),model=scene?.querySelector('[data-carton-model]');if(!scene||!model||scene.dataset.dragMounted)return;scene.dataset.dragMounted='true';
-  const slider=container.querySelector('[data-carton-rotation]'),output=slider?.parentElement.querySelector('output');
-  let drag=null;
-  const rotate=(angle,tilt)=>{model.style.transform=`rotateX(${tilt}deg) rotateY(${angle}deg)`;scene.dataset.angle=String(angle);scene.dataset.tilt=String(tilt);if(slider)slider.value=String(Math.round(angle));if(output)output.textContent=`${Math.round(angle)}°`;onRotation?.(angle,tilt);};
-  scene.addEventListener('pointerdown',event=>{if(event.button!==0||event.target.closest('[data-action]'))return;const savedAngle=Number(scene.dataset.angle),savedTilt=Number(scene.dataset.tilt);drag={x:event.clientX,y:event.clientY,angle:Number.isFinite(savedAngle)?savedAngle:-22,tilt:Number.isFinite(savedTilt)?savedTilt:-7};scene.classList.add('dragging');scene.setPointerCapture?.(event.pointerId);event.preventDefault();});
-  scene.addEventListener('pointermove',event=>{if(!drag)return;const angle=Math.max(-180,Math.min(180,drag.angle+(event.clientX-drag.x)*.7));const tilt=Math.max(-38,Math.min(25,drag.tilt-(event.clientY-drag.y)*.45));rotate(angle,tilt);});
-  const stop=()=>{drag=null;scene.classList.remove('dragging');};scene.addEventListener('pointerup',stop);scene.addEventListener('pointercancel',stop);
-  container.querySelector('[data-carton-reset]')?.addEventListener('click',()=>rotate(-22,-7));
+  const scene=container.querySelector('[data-carton-scene]'),model=scene?.querySelector('[data-carton-model]');
+  if(!scene||!model){releaseCartonInteraction?.();releaseCartonInteraction=null;return;}
+  if(scene.dataset.dragMounted)return;
+  releaseCartonInteraction?.();scene.dataset.dragMounted='true';
+  const stage=scene.closest('.carton-stage'),slider=stage.querySelector('[data-carton-rotation]'),output=slider?.parentElement.querySelector('output'),play=stage.querySelector('[data-carton-play]');
+  const reduced=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
+  const wrap=value=>((value+180)%360+360)%360-180;
+  const initialAngle=Number(scene.dataset.angle),initialTilt=Number(scene.dataset.tilt);
+  let angle=Number.isFinite(initialAngle)?initialAngle:-28,tilt=Number.isFinite(initialTilt)?initialTilt:-10,drag=null,frame=0,lastTime=0,playing=false,disposed=false;
+  const rotate=(nextAngle,nextTilt,{immediate=false}={})=>{
+    angle=nextAngle;tilt=nextTilt;
+    model.style.transition=immediate||reduced?.matches?'none':'';
+    model.style.transform=`rotateX(${tilt}deg) rotateY(${angle}deg)`;
+    scene.dataset.angle=String(angle);scene.dataset.tilt=String(tilt);
+    const displayAngle=Math.round(wrap(angle));if(slider)slider.value=String(displayAngle);if(output)output.textContent=`${displayAngle}°`;
+    for(const button of stage.querySelectorAll('[data-carton-view]')){const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];button.setAttribute('aria-pressed',String(Math.abs(wrap(angle-target))<8));}
+    onRotation?.(wrap(angle),tilt);
+  };
+  const setPlaying=value=>{
+    playing=Boolean(value)&&!reduced?.matches;stage.classList.toggle('is-playing',playing);
+    play?.setAttribute('aria-pressed',String(playing));play?.setAttribute('aria-label',playing?'Pause package turntable':'Play package turntable');
+    const icon=play?.querySelector('[data-carton-play-icon]'),text=play?.querySelector('[data-carton-play-label]');if(icon)icon.textContent=playing?'Ⅱ':'▶';if(text)text.textContent=playing?'Pause':'Turntable';
+    cancelAnimationFrame(frame);frame=0;lastTime=0;
+    if(playing)frame=requestAnimationFrame(tick);
+  };
+  const tick=time=>{
+    if(disposed||!scene.isConnected){cleanup();return;}
+    if(!playing)return;
+    const elapsed=lastTime?Math.min(50,time-lastTime):0;lastTime=time;
+    rotate(angle+elapsed*.013,tilt,{immediate:true});frame=requestAnimationFrame(tick);
+  };
+  const fit=()=>{
+    const width=Number(scene.dataset.cartonWidth)||214,height=Number(scene.dataset.cartonHeight)||282,depth=Number(scene.dataset.cartonDepth)||64;
+    const availableWidth=Math.max(100,scene.clientWidth-58),availableHeight=Math.max(100,scene.clientHeight-75);
+    const scale=Math.min(1.3,availableWidth/(Math.hypot(width,depth)+20),availableHeight/(Math.hypot(width,height,depth)+20));
+    scene.style.setProperty('--carton-fit',String(Math.max(.35,scale)));
+  };
+  const stop=()=>{if(drag&&scene.hasPointerCapture?.(drag.pointerId))scene.releasePointerCapture(drag.pointerId);drag=null;scene.classList.remove('dragging');};
+  const reset=()=>{setPlaying(false);rotate(angle+wrap(-28-angle),-10);};
+  scene.addEventListener('pointerdown',event=>{
+    if(event.button!==0||event.target.closest('button,a,input'))return;
+    setPlaying(false);drag={x:event.clientX,y:event.clientY,angle,tilt,pointerId:event.pointerId};scene.classList.add('dragging');scene.setPointerCapture?.(event.pointerId);scene.focus({preventScroll:true});event.preventDefault();
+  });
+  scene.addEventListener('pointermove',event=>{if(!drag||event.pointerId!==drag.pointerId)return;rotate(drag.angle+(event.clientX-drag.x)*.5,Math.max(-65,Math.min(65,drag.tilt-(event.clientY-drag.y)*.35)),{immediate:true});});
+  scene.addEventListener('pointerup',stop);scene.addEventListener('pointercancel',stop);scene.addEventListener('lostpointercapture',()=>{drag=null;scene.classList.remove('dragging');});
+  scene.addEventListener('keydown',event=>{
+    if(event.target!==scene)return;
+    const step=event.shiftKey?30:10;
+    if(event.key==='Home'){event.preventDefault();reset();return;}
+    if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
+    event.preventDefault();setPlaying(false);rotate(angle+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),Math.max(-65,Math.min(65,tilt+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0))));
+  });
+  slider?.addEventListener('input',event=>{event.stopPropagation();setPlaying(false);rotate(angle+wrap(Number(slider.value)-angle),tilt,{immediate:true});});
+  // Preserve the live pose and avoid the document handler rebuilding the whole review.
+  slider?.addEventListener('change',event=>event.stopPropagation());
+  for(const button of stage.querySelectorAll('[data-carton-view]'))button.addEventListener('click',()=>{setPlaying(false);const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];rotate(angle+wrap(target-angle),-8);});
+  stage.querySelector('[data-carton-reset]')?.addEventListener('click',reset);
+  play?.addEventListener('click',()=>setPlaying(!playing));
+  const visibility=()=>{if(document.hidden)setPlaying(false);};document.addEventListener('visibilitychange',visibility);
+  const motion=()=>{if(reduced?.matches)setPlaying(false);if(play){play.disabled=Boolean(reduced?.matches);play.title=reduced?.matches?'Turntable motion is disabled by your reduced motion preference':'';}};
+  reduced?.addEventListener?.('change',motion);
+  const observer=globalThis.ResizeObserver?new ResizeObserver(fit):null;observer?.observe(scene);window.addEventListener('resize',fit);
+  function cleanup(){if(disposed)return;disposed=true;cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener('resize',fit);document.removeEventListener('visibilitychange',visibility);reduced?.removeEventListener?.('change',motion);}
+  releaseCartonInteraction=cleanup;fit();motion();rotate(angle,tilt,{immediate:true});
 }
-export function mountArtworkControls(container,{review,onRotation}={}){
+export function mountArtworkControls(container,{review,onRotation,viewport,onViewport}={}){
   if(!container)return;
   if(!container.dataset.artMounted){container.dataset.artMounted='true';
-    container.addEventListener('change',event=>{const input=event.target.closest('[data-art-page]');if(!input)return;const wrapper=input.closest('[data-artwork-map]');if(!wrapper)return;const next=document.createElement('div');next.innerHTML=artworkMap(review,{page:Number(input.value)});wrapper.replaceWith(next.firstElementChild);mountArtworkControls(container,{review,onRotation});});
+    container.addEventListener('change',event=>{const input=event.target.closest('[data-art-page]');if(!input)return;const wrapper=input.closest('[data-artwork-map]');if(!wrapper)return;const next=document.createElement('div');next.innerHTML=artworkMap(review,{page:Number(input.value)});wrapper.replaceWith(next.firstElementChild);mountArtworkControls(container,{review,onRotation,viewport,onViewport});});
     const scrolls=[...container.querySelectorAll('.revision-scroll')];for(const scroll of scrolls)scroll.addEventListener('scroll',()=>{if(scroll.dataset.syncing)return;for(const other of scrolls)if(other!==scroll){other.dataset.syncing='1';other.scrollTop=scroll.scrollTop;other.scrollLeft=scroll.scrollLeft;delete other.dataset.syncing;}},{passive:true});
   }
   const frame=container.querySelector('[data-workbench-frame]');
-  if(frame&&!frame.dataset.mounted){frame.dataset.mounted='true';const slider=container.querySelector('[data-workbench-zoom]'),imageLayer=frame.querySelector('[data-workbench-image]'),coordinate=container.querySelector('[data-cursor-coordinate]');
-    const setZoom=value=>{const scale=Math.max(1,Math.min(3,Number(value)/100||1));frame.dataset.zoom=String(Math.round(scale*100));if(imageLayer)imageLayer.style.transform=`scale(${scale})`;if(slider?.parentElement.querySelector('output'))slider.parentElement.querySelector('output').textContent=`${Math.round(scale*100)}%`;};
-    setZoom(slider?.value||100);slider?.addEventListener('input',()=>setZoom(slider.value));
-    container.querySelector('[data-layer-boxes]')?.addEventListener('change',event=>frame.classList.toggle('hide-boxes',!event.target.checked));
-    container.querySelector('[data-layer-zones]')?.addEventListener('change',event=>frame.classList.toggle('hide-zones',!event.target.checked));
-    frame.addEventListener('pointermove',event=>{if(!coordinate)return;const rect=frame.getBoundingClientRect(),scale=Number(frame.dataset.zoom)/100||1;const x=Math.max(0,Math.min(1,.5+(event.clientX-rect.left-rect.width/2)/(rect.width*scale)));const y=Math.max(0,Math.min(1,.5+(event.clientY-rect.top-rect.height/2)/(rect.height*scale)));if(frame.dataset.unit==='pt'){const mmX=x*Number(frame.dataset.pageWidth)*25.4/72,mmY=y*Number(frame.dataset.pageHeight)*25.4/72;coordinate.textContent=`X ${mmX.toFixed(1)} mm · Y ${mmY.toFixed(1)} mm`;}else coordinate.textContent=`X ${(x*100).toFixed(1)}% · Y ${(y*100).toFixed(1)}% · physical size unavailable`;});
-    frame.addEventListener('pointerleave',()=>{if(coordinate)coordinate.textContent='X — · Y —';});verifyDisplayedSource(container,review);
+  if(frame&&!frame.dataset.mounted){
+    frame.dataset.mounted='true';
+    const coordinate=container.querySelector('[data-cursor-coordinate]');
+    const controls=frame.closest('.workbench-artwork');
+    mountViewport({
+      frame,content:frame.querySelector('[data-workbench-image]'),controls,
+      slider:controls.querySelector('[data-workbench-zoom]'),
+      initialView:viewport||{scale:Number(frame.dataset.zoom)/100||1,x:0,y:0},
+      focus:frame.dataset.focusBox?frame.dataset.focusBox.split(',').map(Number):null,
+      onChange:onViewport,
+      onPoint:({x,y})=>{
+        if(!coordinate)return;
+        if(frame.dataset.unit==='pt')coordinate.textContent=`X ${(x*Number(frame.dataset.pageWidth)*25.4/72).toFixed(1)} mm · Y ${(y*Number(frame.dataset.pageHeight)*25.4/72).toFixed(1)} mm`;
+        else coordinate.textContent=`X ${(x*100).toFixed(1)}% · Y ${(y*100).toFixed(1)}%`;
+      },
+    });
+    controls.querySelector('[data-layer-boxes]')?.addEventListener('change',event=>frame.classList.toggle('hide-boxes',!event.target.checked));
+    controls.querySelector('[data-layer-zones]')?.addEventListener('change',event=>frame.classList.toggle('hide-zones',!event.target.checked));
+    frame.addEventListener('pointerleave',()=>{if(coordinate)coordinate.textContent='X — · Y —';});
+    verifyDisplayedSource(container,review);
   }
   mountSpotlight(container);mountTraceConnector(container);mountCartonDrag(container,onRotation);
 }
