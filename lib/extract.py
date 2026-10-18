@@ -25,7 +25,7 @@ def extract(path, role, outdir, artifact_id, name):
     from PIL import Image, ImageOps
     p = Path(path); out = Path(outdir); out.mkdir(parents=True, exist_ok=True)
     doc = dict(id=artifact_id, name=name, role=role, sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
-               bytes=p.stat().st_size, pages=[], cells=[], lines=[], warnings=[], text='', data=None)
+               bytes=p.stat().st_size, pages=[], cells=[], lines=[], panelLabels=[], warnings=[], text='', data=None)
     ext = p.suffix.lower()
     if ext in ('.xlsx', '.docx'):
         with zipfile.ZipFile(p) as archive:
@@ -47,22 +47,31 @@ def extract(path, role, outdir, artifact_id, name):
             tp = page.get_textpage(); text = tp.get_text_range().replace('\x00','')
             if len(text) > 100_000: raise ValueError('Too much text in one PDF page.')
             lines=[]
-            for m in re.finditer(r'[^\r\n]+', text):
-                value=m.group().strip()
-                if not value: continue
+            panel_label=re.compile(r'\b(?:front|back|rear|left|right|top|bottom)\s+(?:carton\s+)?(?:panel|side|face)\b|\b(?:panel|side|face)\s+(?:of\s+)?(?:front|back|rear|left|right|top|bottom)\b',re.I)
+            def text_rect(start,end):
                 boxes=[]
-                for ix in range(m.start(), min(m.end(),tp.count_chars())):
+                for ix in range(start,min(end,tp.count_chars())):
                     try:
                         b=tp.get_charbox(ix)
                         if b[2]>b[0] and b[3]>b[1]: boxes.append(b)
                     except Exception: pass
-                rect=None
-                if boxes and page.get_rotation()==0:
-                    x0=min(b[0] for b in boxes); y0=min(b[1] for b in boxes)
-                    x1=max(b[2] for b in boxes); y1=max(b[3] for b in boxes)
-                    rect=[max(0,min(1,(x0-left)/width)), max(0,min(1,(top-y1)/height)),
-                          max(0,min(1,(x1-left)/width)), max(0,min(1,(top-y0)/height))]
+                if not boxes or page.get_rotation()!=0:return None
+                x0=min(b[0] for b in boxes);y0=min(b[1] for b in boxes)
+                x1=max(b[2] for b in boxes);y1=max(b[3] for b in boxes)
+                return [max(0,min(1,(x0-left)/width)),max(0,min(1,(top-y1)/height)),
+                        max(0,min(1,(x1-left)/width)),max(0,min(1,(top-y0)/height))]
+            for m in re.finditer(r'[^\r\n]+', text):
+                raw=m.group();leading=len(raw)-len(raw.lstrip());value=raw.strip()
+                if not value: continue
+                text_start=m.start()+leading
+                rect=text_rect(text_start,text_start+len(value))
                 lines.append(dict(text=value,page=n+1,box=rect))
+                # PDF text extraction can merge horizontally aligned dieline
+                # headings into one line. Keep their precise text-span boxes
+                # separately so the 3D preview can locate each named face.
+                for label_match in panel_label.finditer(value):
+                    label_box=text_rect(text_start+label_match.start(),text_start+label_match.end())
+                    if label_box:doc['panelLabels'].append(dict(text=label_match.group(),page=n+1,box=label_box))
             doc['lines'] += lines
             doc['pages'].append(dict(number=n+1,width=width,height=height,unit='pt',image=image_name,text=text,codes=codes,
                                       method='pdf_text' if len(text.strip())>40 else 'vision_needed'))

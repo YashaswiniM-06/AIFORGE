@@ -79,6 +79,52 @@ test('new uploads preview the complete page as illustrative front art without in
   assert.deepEqual(uploaded,before,'preview must not save geometry or change findings');
 });
 
+test('new uploads use positioned panel labels to place each crop on the matching illustrative 3D face',()=>{
+  const labeled={...review,id:'review-labeled-upload',sample:undefined,options:{panelZones:{}},documents:[{
+    ...review.documents[0],pages:[{...review.documents[0].pages[0],width:880,height:540}],lines:[
+      {text:'BACK PANEL',page:1,box:[.02,.018,.075,.04]},
+      {text:'LEFT SIDE',page:1,box:[.26,.018,.31,.04]},
+      {text:'FRONT PANEL',page:1,box:[.51,.018,.57,.04]},
+      {text:'RIGHT SIDE',page:1,box:[.76,.018,.82,.04]},
+    ],
+  }]};
+  const before=structuredClone(labeled),zones=sourcePreviewZones(labeled);
+  assert.deepEqual(Object.keys(zones),['back','left','front','right']);
+  assert.deepEqual(zones.front,{page:1,box:[.51,0,.76,1]},'left-aligned panel labels locate the actual front column');
+  assert.deepEqual(zones.left,{page:1,box:[.26,0,.51,1]});
+  const html=workbenchArtwork(labeled,finding,{mode:'3d'});
+  for(const face of ['back','left','front','right'])assert.match(html,new RegExp(`data-carton-face="${face}"[^>]*detected panel preview only`));
+  assert.match(html,/Detected panels · preview only/);
+  assert.match(html,/Confirm the detected face crops in Sources & decisions/);
+  assert.match(html,/Detected panel crops · preview only/);
+  assert.match(html,/the preview does not change review findings/);
+  assert.match(html,/reviewer mapping not confirmed/);
+  assert.doesNotMatch(html,/carton-pin |carton-evidence-box|Evidence on Front|Mapped face Front/);
+  assert.deepEqual(labeled,before,'detected crops stay preview-only and never write reviewer geometry');
+  const partiallyMapped={...labeled,options:{panelZones:{front:zones.front}}};
+  const partialHtml=workbenchArtwork(partiallyMapped,finding,{mode:'3d'});
+  assert.match(partialHtml,/carton-face carton-front mapped/);
+  assert.match(partialHtml,/carton-face carton-back preview-only/);
+  assert.match(partialHtml,/Confirm the detected face crops in Sources & decisions/,'remaining detected faces stay visible for reviewer confirmation');
+});
+
+test('panel labels without page coordinates do not create guessed face mappings',()=>{
+  const uploaded={...review,id:'review-no-coordinates',sample:undefined,options:{panelZones:{}},documents:[{
+    ...review.documents[0],lines:[{text:'BACK PANEL'},{text:'FRONT PANEL'}],
+  }]};
+  assert.deepEqual(sourcePreviewZones(uploaded),{front:{page:1,box:[0,0,1,1]}});
+});
+
+test('existing reviews with one merged four-panel heading row still preview the four carton faces',()=>{
+  const legacy={...review,id:'review-legacy-labeled-upload',sample:undefined,options:{panelZones:{}},documents:[{
+    ...review.documents[0],pages:[{...review.documents[0].pages[0],width:880,height:540}],
+    lines:[{text:'BACK PANEL LEFT SIDE FRONT PANEL RIGHT SIDE',page:1,box:[.02,.036,.816,.047]}],
+  }]};
+  assert.deepEqual(sourcePreviewZones(legacy),{
+    back:{page:1,box:[0,0,.25,1]},left:{page:1,box:[.25,0,.5,1]},front:{page:1,box:[.5,0,.75,1]},right:{page:1,box:[.75,0,1,1]},
+  });
+});
+
 test('existing Fieldday sample preview geometry stays unchanged',()=>{
   const sample={...review,id:'fieldday-preview',sample:'fieldday',documents:[{...review.documents[0],pages:[{...review.documents[0].pages[0],width:1800,height:860}]}],options:{panelZones:{
     front:{page:1,box:[40/1200,60/860,510/1200,802/860]},

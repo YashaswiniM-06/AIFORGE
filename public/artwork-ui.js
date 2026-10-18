@@ -43,17 +43,66 @@ const organizerVisualZones={
   front:{page:1,box:[.528,.375,.82,.786]},
   right:{page:1,box:[.834,.375,.993,.786]},
 };
+function labeledPanelPreviewZones(doc,page){
+  const candidates=[];
+  for(const line of [...(doc?.panelLabels||[]),...(doc?.lines||[])]){
+    if(line.page!=null&&Number(line.page)!==Number(page.number))continue;
+    const box=line.box;
+    if(!Array.isArray(box)||box.length!==4||box.some(value=>!Number.isFinite(Number(value))))continue;
+    const [x0,y0,x1,y1]=box.map(Number),width=x1-x0,height=y1-y0;
+    if(x0<0||y0<0||x1>1||y1>1||width<=0||height<=0||width>.38||height>.12||y0>.28)continue;
+    const match=String(line.text||'').replace(/\s+/g,' ').match(/\b(front|back|rear|left|right|top|bottom)\s+(?:carton\s+)?(?:panel|side|face)\b|\b(?:panel|side|face)\s+(?:of\s+)?(front|back|rear|left|right|top|bottom)\b/i);
+    if(!match)continue;
+    const raw=(match[1]||match[2]).toLowerCase(),name=raw==='rear'?'back':raw;
+    candidates.push({name,left:x0,center:(x0+x1)/2,top:y0,box});
+  }
+  candidates.sort((a,b)=>a.center-b.center||a.top-b.top);
+  const byFace=new Map();
+  for(const candidate of candidates)if(!byFace.has(candidate.name))byFace.set(candidate.name,candidate);
+  const panels=[...byFace.values()].sort((a,b)=>a.center-b.center);
+  if(panels.length<2||panels.at(-1).center-panels[0].center<.3)return null;
+  for(let i=1;i<panels.length;i++)if(panels[i].center-panels[i-1].center<.12)return null;
+  const starts=panels.map(panel=>panel.left),centers=panels.map(panel=>panel.center);
+  const gapVariation=positions=>{
+    const gaps=positions.slice(1).map((value,index)=>value-positions[index]),mean=gaps.reduce((sum,value)=>sum+value,0)/gaps.length;
+    return mean?gaps.reduce((sum,value)=>sum+Math.abs(value-mean),0)/(gaps.length*mean):Infinity;
+  };
+  // Most flat dielines align their face labels to the panel's left inset. A
+  // centered label row has more evenly spaced text centers instead. Compare
+  // both alignments so the crop boundaries follow the artwork's actual columns.
+  const leftAligned=gapVariation(starts)<=gapVariation(centers)+.035;
+  const zones={};
+  for(let i=0;i<panels.length;i++){
+    const panel=panels[i],left=leftAligned?(i===0?0:panel.left):(i===0?0:(panels[i-1].center+panel.center)/2),right=leftAligned?(i===panels.length-1?1:panels[i+1].left):(i===panels.length-1?1:(panel.center+panels[i+1].center)/2);
+    zones[panel.name]={page:page.number,box:[left,0,right,1]};
+  }
+  return zones;
+}
+function legacyMergedPanelPreviewZones(doc,page){
+  if(doc?.panelLabels?.length||Number(page.width)/Math.max(Number(page.height)||1,1)<1.4)return null;
+  const pattern=String.raw`\b(front|back|rear|left|right|top|bottom)\s+(?:carton\s+)?(?:panel|side|face)\b|\b(?:panel|side|face)\s+(?:of\s+)?(front|back|rear|left|right|top|bottom)\b`;
+  for(const line of doc?.lines||[]){
+    if(line.page!=null&&Number(line.page)!==Number(page.number))continue;
+    const box=line.box;if(!Array.isArray(box)||box.length!==4||box[2]-box[0]<.6||box[1]>.1)continue;
+    const text=String(line.text||''),matches=[...text.matchAll(new RegExp(pattern,'ig'))];
+    if(matches.length!==4||text.replace(new RegExp(pattern,'ig'),'').trim())continue;
+    const names=matches.map(match=>{const raw=(match[1]||match[2]).toLowerCase();return raw==='rear'?'back':raw;});
+    if(new Set(names).size!==4||!['front','back','left','right'].every(name=>names.includes(name)))continue;
+    return Object.fromEntries(names.map((name,index)=>[name,{page:page.number,box:[index/4,0,(index+1)/4,1]}]));
+  }
+  return null;
+}
 // Non-persistent visual crops for the established built-in samples. Unknown
-// uploads show a whole-page illustration until a reviewer maps real faces.
+// uploads can use explicit printed face labels for illustrative, non-persisted crops.
 export function sourcePreviewZones(review){
   if(review?.sample==='organizer')return structuredClone(organizerVisualZones);
   if(!review||review.id==='review-demo')return {};
   const doc=artwork(review),page=doc?.pages?.[0];
   if(!page)return {};
-  // A new upload has no trustworthy face map. Show its complete first page as
-  // an illustrative front only; a reviewer must define the actual package faces.
-  // Built-in samples retain their established preview geometry below.
-  if(!review.sample)return {front:{page:page.number,box:[0,0,1,1]}};
+  // Use only clearly printed, positioned panel labels for a generic visual
+  // preview. These inferred crops never become saved reviewer mappings.
+  // Without enough explicit labels, retain the safe full-page front preview.
+  if(!review.sample)return labeledPanelPreviewZones(doc,page)||legacyMergedPanelPreviewZones(doc,page)||{front:{page:page.number,box:[0,0,1,1]}};
   const pw=Number(page.width)||1200,ph=Number(page.height)||800,ratio=pw/ph;
   const pageBoxes=(review?.findings||[])
     .flatMap(f=>f.evidence||[])
@@ -102,10 +151,11 @@ export function sourcePreviewZones(review){
     front:{page:page.number,box:[0.02,y0,0.98,y1]}
   };
 }
-function faceTexture(review,zone){
+function faceTexture(review,zone,{previewOnly=false}={}){
   const doc=artwork(review),page=doc?.pages?.find(p=>p.number===zone.page);if(!page||!zone.box)return '<span class="carton-unmapped">Panel not mapped</span>';
   const [x0,y0,x1,y1]=zone.box,w=Math.max(.001,x1-x0),h=Math.max(.001,y1-y0);
-  return `<img src="${image(review,page)}" alt="Mapped ${esc(faceLabels[zone.name]||zone.name)} artwork panel" style="width:${100/w}%;height:${100/h}%;left:${-100*x0/w}%;top:${-100*y0/h}%">`;
+  const alt=previewOnly?`Illustrative ${faceLabels[zone.name]||zone.name} artwork crop; reviewer mapping not confirmed`:`Mapped ${faceLabels[zone.name]||zone.name} artwork panel`;
+  return `<img src="${image(review,page)}" alt="${esc(alt)}" style="width:${100/w}%;height:${100/h}%;left:${-100*x0/w}%;top:${-100*y0/h}%">`;
 }
 function facePins(review,zone,selectedFindingId){
   if(!zone?.box)return '';
@@ -160,15 +210,17 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   const visualZones={...previewZones,...zones};
   const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
   const samplePreview=Object.keys(previewZones).some(name=>!zones[name]?.box);
-  const genericFullPagePreview=!review.sample&&samplePreview;
+  const genericFullPagePreview=!review.sample&&samplePreview&&Object.keys(previewZones).length===1&&previewZones.front?.box?.every((value,index)=>value===[0,0,1,1][index]);
+  const genericPanelPreview=!review.sample&&samplePreview&&!genericFullPagePreview;
+  const genericPreviewOnly=!review.sample&&samplePreview;
   let contextZone=null,selectedPanelFound=false;
   if(selected?.item.box){
     const [x0,y0,x1,y1]=selected.item.box,center=[(x0+x1)/2,(y0+y1)/2];
-    const contextZones=genericFullPagePreview?zones:visualZones;
+    const contextZones=genericPreviewOnly?zones:visualZones;
     contextZone=Object.entries(contextZones).find(([,zone])=>zone.page===selected.item.page&&zone.box&&center[0]>=zone.box[0]&&center[0]<=zone.box[2]&&center[1]>=zone.box[1]&&center[1]<=zone.box[3]);
     selectedPanelFound=Boolean(contextZone);
   }
-  if(!contextZone){const contextZones=genericFullPagePreview?zones:visualZones;contextZone=Object.entries(contextZones).find(([name])=>name==='front')||Object.entries(contextZones)[0]||null;}
+  if(!contextZone){const contextZones=genericPreviewOnly?zones:visualZones;contextZone=Object.entries(contextZones).find(([name])=>name==='front')||Object.entries(contextZones)[0]||null;}
   let visual='';
   if(mode==='3d'){
     const targetAngles={front:0,right:-90,back:-180,left:90};
@@ -180,20 +232,20 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
       const reviewerMapped=Boolean(zones[name]?.box);
       const faceState=reviewerMapped?'mapped':samplePreview&&zone?'preview-only':'unmapped';
       const isFindingFace=selectedPanelFound&&contextZone&&contextZone[0]===name;
-      const facePreviewLabel=genericFullPagePreview&&name==='front'?' full-page illustration only':samplePreview&&zone?' visual sample preview':'';
-      const evidenceBoxes=zone&&(!genericFullPagePreview||reviewerMapped)?faceEvidenceBoxes(review,zone,finding?.id,activeEvidenceIndex):'';
-      return `<div class="carton-face ${css} ${faceState} ${isFindingFace?'face-focused':''}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${facePreviewLabel}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${evidenceBoxes}</div>`;
+      const facePreviewLabel=genericFullPagePreview&&name==='front'?' full-page illustration only':genericPanelPreview&&zone?' detected panel preview only':samplePreview&&zone?' visual sample preview':'';
+      const evidenceBoxes=zone&&(!genericPreviewOnly||reviewerMapped)?faceEvidenceBoxes(review,zone,finding?.id,activeEvidenceIndex):'';
+      return `<div class="carton-face ${css} ${faceState} ${isFindingFace?'face-focused':''}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${facePreviewLabel}">${zone?faceTexture(review,zone,{previewOnly:genericPreviewOnly&&!reviewerMapped}):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${evidenceBoxes}</div>`;
     }).join('');
 
     const contextName=contextZone?(faceLabels[contextZone[0]]||contextZone[0]):'';
-    const location=genericFullPagePreview?'Full artwork page · illustrative front only':samplePreview?(review.sample==='organizer'?'Organizer artwork · illustrative fold':'3D package preview · illustrative fold'):contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
-    const prompt=!mappedCount&&(!samplePreview||genericFullPagePreview)
-      ?`<div class="carton-map-prompt"><div><b>Bring your artwork onto the package</b><span>${genericFullPagePreview?'Map the real package faces before treating this illustrative 3D fold as package-specific.':'Map the supplied front, back, and side panels to preview this carton.'}</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
+    const location=genericFullPagePreview?'Full artwork page · illustrative front only':genericPanelPreview?'Detected panel crops · preview only':samplePreview?(review.sample==='organizer'?'Organizer artwork · illustrative fold':'3D package preview · illustrative fold'):contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
+    const prompt=(genericPreviewOnly||!mappedCount&&!samplePreview)
+      ?`<div class="carton-map-prompt"><div><b>Bring your artwork onto the package</b><span>${genericFullPagePreview?'Map the real package faces before treating this illustrative 3D fold as package-specific.':genericPanelPreview?'Confirm the detected face crops in Sources & decisions before treating this illustrative fold as package-specific.':'Map the supplied front, back, and side panels to preview this carton.'}</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
       :'';
     const depthNote=mappedCount&&dims.measured?'Proportions follow your mapped faces.':'Carton proportions are illustrative.';
-    const studioLabel=genericFullPagePreview?'Full artwork page · preview only':samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`;
-    const caption=genericFullPagePreview?'The full supplied page is shown on an illustrative front; map real faces for package-specific artwork context.':samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote;
-    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${studioLabel}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||samplePreview)?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${caption} Use 2D proof for exact artwork inspection.</p></div>`;
+    const studioLabel=genericFullPagePreview?'Full artwork page · preview only':genericPanelPreview?'Detected panels · preview only':samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`;
+    const caption=genericFullPagePreview?'The full supplied page is shown on an illustrative front; map real faces for package-specific artwork context.':genericPanelPreview?'Crops follow explicit artwork panel labels. Confirm each face map before using package-specific context; the preview does not change review findings.':samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote;
+    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${studioLabel}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||(samplePreview&&!genericPreviewOnly))?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${caption} Use 2D proof for exact artwork inspection.</p></div>`;
   }else{
     const regions=artworkEvidence.filter(({item})=>item.page===page.number&&Array.isArray(item.box));
     const issue=finding?.status==='issue';
@@ -213,7 +265,7 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
     ${viewportToolbar({zoom:Number(zoom)||100,hasFocus:Boolean(selectedBox)})}
     <div class="prepress-hud"><label class="hud-layer"><input type="checkbox" data-layer-boxes ${showBoxes?'checked':''}> Evidence boxes</label><label class="hud-layer" title="Reviewer-drawn regions"><input type="checkbox" data-layer-zones ${showZones?'checked':''}> Panel zones</label><span class="hud-coordinate" data-cursor-coordinate>X — · Y —</span><span class="hud-hash" data-source-hash data-hash="${esc(hash)}" data-document-id="${esc(doc.id)}">${hash?'Checking SHA-256…':'Source hash unavailable'}</span></div><p class="workbench-art-caption">The 2D proof is unaltered. Drag, scroll, or use the arrows to explore at any zoom.</p>`;
   }
-  return `<section class="workbench-artwork" aria-label="Artwork review surface"><div class="workbench-viewer-head"><div class="segmented-control" role="group" aria-label="Artwork view"><button class="${mode==='2d'?'active':''}" data-action="workbench-mode" data-mode="2d" aria-pressed="${mode==='2d'}">2D proof</button><button class="${mode==='3d'?'active':''}" data-action="workbench-mode" data-mode="3d" aria-pressed="${mode==='3d'}">3D context</button></div>${mode==='2d'?`<label class="workbench-page-select">Artwork page<select data-workbench-page>${pageOptions.map(n=>`<option value="${n}" ${n===page.number?'selected':''}>Page ${n}</option>`).join('')}</select></label>`:`<span class="workbench-page-select">${genericFullPagePreview?`Illustrative front · ${mappedCount} face${mappedCount===1?'':'s'} mapped`:review.sample==='organizer'&&!mappedCount?'Visual sample · 0 geometry maps':mappedCount?`Mapped faces: ${mappedCount}`:samplePreview?'Auto 3D layout':'Artwork faces not mapped'}</span>`}</div>${visual}</section>`;
+  return `<section class="workbench-artwork" aria-label="Artwork review surface"><div class="workbench-viewer-head"><div class="segmented-control" role="group" aria-label="Artwork view"><button class="${mode==='2d'?'active':''}" data-action="workbench-mode" data-mode="2d" aria-pressed="${mode==='2d'}">2D proof</button><button class="${mode==='3d'?'active':''}" data-action="workbench-mode" data-mode="3d" aria-pressed="${mode==='3d'}">3D context</button></div>${mode==='2d'?`<label class="workbench-page-select">Artwork page<select data-workbench-page>${pageOptions.map(n=>`<option value="${n}" ${n===page.number?'selected':''}>Page ${n}</option>`).join('')}</select></label>`:`<span class="workbench-page-select">${genericFullPagePreview?`Illustrative front · ${mappedCount} face${mappedCount===1?'':'s'} mapped`:genericPanelPreview?`Detected panel preview · ${mappedCount} face${mappedCount===1?'':'s'} mapped`:review.sample==='organizer'&&!mappedCount?'Visual sample · 0 geometry maps':mappedCount?`Mapped faces: ${mappedCount}`:samplePreview?'Auto 3D layout':'Artwork faces not mapped'}</span>`}</div>${visual}</section>`;
 }
 export function revisionVisual(current,previous){
   const a=artwork(previous),b=artwork(current);if(!a||!b)return '';
