@@ -753,13 +753,6 @@ document.addEventListener("input", (event) => {
   if (event.target.matches("[data-workbench-zoom]")) artworkZoom = Number(event.target.value) || 100;
   if (event.target.matches("[data-layer-boxes]")) showEvidenceBoxes = event.target.checked;
   if (event.target.matches("[data-layer-zones]")) showPanelZones = event.target.checked;
-  if (!event.target.matches("[data-carton-rotation]")) return;
-  const angle = Number(event.target.value) || 0;
-  const model = event.target.closest(".carton-stage")?.querySelector(".carton-model");
-  const output = event.target.parentElement?.querySelector("output");
-  cartonRotation = angle;
-  if (model) model.style.transform = `rotateX(${cartonTilt}deg) rotateY(${angle}deg)`;
-  if (output) output.textContent = `${angle}°`;
 });
 document.addEventListener("change", (event) => {
   if (event.target.matches("[data-workbench-page]")) {
@@ -886,9 +879,11 @@ document.addEventListener("submit", async (event) => {
   }
 });
 try {
-  status = await api("/status", { timeoutMs: 12_000 });
-  marketPresets = await api("/market-presets", { timeoutMs: 12_000 });
-  reviews = await api("/reviews", { timeoutMs: 20_000 });
+  [status, marketPresets, reviews] = await Promise.all([
+    api("/status", { timeoutMs: 12_000 }),
+    api("/market-presets", { timeoutMs: 12_000 }),
+    api("/reviews", { timeoutMs: 20_000 }),
+  ]);
   const id = location.hash.match(/^#review\/([a-f0-9-]{36})$/)?.[1];
   if (id) await openReview(id);
   else dashboard();

@@ -73,7 +73,8 @@ export function sourcePreviewZones(review){
     };
   }
 
-  // 2. Dual-panel packaging layout (1.1 <= ratio < 1.45) e.g. Cascade Pure, Fieldday
+  // 2. Dual-panel artwork (1.1 <= ratio < 1.45) e.g. Fieldday. These source
+  // panels do not contain enough geometry to invent carton side artwork.
   if(ratio>=1.1){
     const brandFinding=(review?.findings||[]).find(f=>/brand|identity|variant|product|title/i.test(f.title||f.rule?.id||''));
     const brandBox=brandFinding?.evidence?.find(e=>e.role==='artwork'&&Array.isArray(e.box))?.box;
@@ -81,26 +82,20 @@ export function sourcePreviewZones(review){
     if(frontOnRight){
       return {
         front:{page:page.number,box:[0.51,y0,0.98,y1]},
-        back: {page:page.number,box:[0.02,y0,0.49,y1]},
-        left: {page:page.number,box:[0.02,y0,0.22,y1]},
-        right:{page:page.number,box:[0.78,y0,0.98,y1]}
+        back: {page:page.number,box:[0.02,y0,0.49,y1]}
       };
     }else{
       return {
         front:{page:page.number,box:[0.02,y0,0.49,y1]},
-        back: {page:page.number,box:[0.51,y0,0.98,y1]},
-        left: {page:page.number,box:[0.02,y0,0.22,y1]},
-        right:{page:page.number,box:[0.78,y0,0.98,y1]}
+        back: {page:page.number,box:[0.51,y0,0.98,y1]}
       };
     }
   }
 
-  // 3. Single-panel / portrait / bottle / pouch (ratio < 1.1)
+  // 3. Single-panel / portrait / bottle / pouch. Keep the remaining faces
+  // visibly unmapped until the reviewer supplies their artwork.
   return {
-    front:{page:page.number,box:[0.02,y0,0.98,y1]},
-    back: {page:page.number,box:[0.02,y0,0.98,y1]},
-    left: {page:page.number,box:[0.02,y0,0.28,y1]},
-    right:{page:page.number,box:[0.72,y0,0.98,y1]}
+    front:{page:page.number,box:[0.02,y0,0.98,y1]}
   };
 }
 function faceTexture(review,zone){
@@ -260,51 +255,75 @@ function mountTraceConnector(container){
   window.addEventListener('resize',update);container.closest('dialog')?.addEventListener('close',clean,{once:true});
   container.querySelector('[data-proof-spotlight]')?.addEventListener('viewportchange',()=>requestAnimationFrame(update));
 }
-let releaseCartonInteraction=null;
+// The proof dialog also mounts artwork controls. It must not dispose a live
+// carton belonging to the review underneath it.
+let cartonInteraction=null;
 function mountCartonDrag(container,onRotation){
   const scene=container.querySelector('[data-carton-scene]'),model=scene?.querySelector('[data-carton-model]');
-  if(!scene||!model){releaseCartonInteraction?.();releaseCartonInteraction=null;return;}
-  if(scene.dataset.dragMounted)return;
-  releaseCartonInteraction?.();scene.dataset.dragMounted='true';
+  if(cartonInteraction&&(!cartonInteraction.scene.isConnected||(cartonInteraction.container===container&&cartonInteraction.scene!==scene)))cartonInteraction.cleanup();
+  if(!scene||!model||cartonInteraction?.scene===scene)return;
+  cartonInteraction?.cleanup();scene.dataset.dragMounted='true';
   const stage=scene.closest('.carton-stage'),slider=stage?.querySelector('[data-carton-rotation]'),output=slider?.parentElement?.querySelector('output'),play=stage?.querySelector('[data-carton-play]');
   const viewButtons=stage?[...stage.querySelectorAll('[data-carton-view]')]:[];
   const reduced=globalThis.matchMedia?.('(prefers-reduced-motion: reduce)');
   const wrap=value=>((value+180)%360+360)%360-180;
+  const faceAngles={front:0,right:-90,back:-180,left:90};
   const initialAngle=Number(scene.dataset.angle),initialTilt=Number(scene.dataset.tilt);
   let angle=Number.isFinite(initialAngle)?initialAngle:-28,tilt=Number.isFinite(initialTilt)?initialTilt:-10;
-  let drag=null,frame=0,lastTime=0,playing=false,disposed=false,lastAppliedAngle=null;
-
-  const rotate=(nextAngle,nextTilt,{immediate=false}={})=>{
-    angle=nextAngle;tilt=nextTilt;
-    model.style.transition=immediate||reduced?.matches?'none':'';
-    model.style.transform=`rotateX(${tilt}deg) rotateY(${angle}deg)`;
+  let drag=null,pendingDrag=null,tween=null,frame=0,lastTime=null,playing=false,disposed=false,lastControlsTime=-Infinity;
+  const listeners=[];
+  const listen=(node,type,handler)=>{if(!node?.addEventListener)return;node.addEventListener(type,handler);listeners.push(()=>node.removeEventListener(type,handler));};
+  // One animation clock owns the pose, including face shortcuts. Starting a
+  // drag during a shortcut therefore continues from the actual visible pose.
+  model.style.transition='none';
+  const syncControls=()=>{
     const displayAngle=Math.round(wrap(angle));
-    if(displayAngle!==lastAppliedAngle){
-      lastAppliedAngle=displayAngle;
-      scene.dataset.angle=String(displayAngle);
-      scene.dataset.tilt=String(Math.round(tilt));
-      if(slider&&document.activeElement!==slider)slider.value=String(displayAngle);
-      if(output)output.textContent=`${displayAngle}°`;
-      for(const button of viewButtons){
-        const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];
-        const active=Math.abs(wrap(displayAngle-target))<8;
-        if(button.getAttribute('aria-pressed')!==String(active))button.setAttribute('aria-pressed',String(active));
-      }
+    scene.dataset.angle=String(wrap(angle));scene.dataset.tilt=String(tilt);
+    if(slider&&document.activeElement!==slider&&slider.value!==String(displayAngle))slider.value=String(displayAngle);
+    if(output&&output.textContent!==`${displayAngle}°`)output.textContent=`${displayAngle}°`;
+    for(const button of viewButtons){
+      const active=String(Math.abs(wrap(angle-faceAngles[button.dataset.cartonView]))<8);
+      if(button.getAttribute('aria-pressed')!==active)button.setAttribute('aria-pressed',active);
     }
+  };
+  const rotate=(nextAngle,nextTilt,{sync=false,time=0}={})=>{
+    // Keep the angle bounded during continuous playback so long sessions do
+    // not feed huge rotation values into the browser's 3D transform matrix.
+    angle=wrap(nextAngle);tilt=nextTilt;
+    model.style.transform=`rotateX(${tilt}deg) rotateY(${angle}deg)`;
+    // Keep the rotating layer independent of range/text layout work. Controls
+    // still catch up immediately when interaction or playback ends.
+    if(sync||time-lastControlsTime>=100){syncControls();lastControlsTime=time;}
     onRotation?.(wrap(angle),tilt);
   };
+  const schedule=()=>{if(!frame&&!disposed)frame=requestAnimationFrame(tick);};
   const setPlaying=value=>{
-    playing=Boolean(value)&&!reduced?.matches;stage?.classList.toggle('is-playing',playing);
+    playing=Boolean(value)&&!reduced?.matches&&!document.hidden&&!disposed;tween=null;
+    stage?.classList.toggle('is-playing',playing);
     play?.setAttribute('aria-pressed',String(playing));play?.setAttribute('aria-label',playing?'Pause package turntable':'Play package turntable');
     const icon=play?.querySelector('[data-carton-play-icon]'),text=play?.querySelector('[data-carton-play-label]');if(icon)icon.textContent=playing?'Ⅱ':'▶';if(text)text.textContent=playing?'Pause':'Turntable';
-    cancelAnimationFrame(frame);frame=0;lastTime=0;
-    if(playing)frame=requestAnimationFrame(tick);
+    cancelAnimationFrame(frame);frame=0;lastTime=null;syncControls();
+    if(playing||pendingDrag)schedule();
   };
-  const tick=time=>{
+  function tick(time){
+    frame=0;
     if(disposed||!scene.isConnected){cleanup();return;}
-    if(!playing)return;
-    const elapsed=lastTime?Math.min(50,time-lastTime):0;lastTime=time;
-    rotate(angle+elapsed*.032,tilt,{immediate:true});frame=requestAnimationFrame(tick);
+    if(pendingDrag){const pose=pendingDrag;pendingDrag=null;rotate(pose.angle,pose.tilt,{time});}
+    else if(playing){
+      const elapsed=lastTime===null?0:Math.max(0,time-lastTime);lastTime=time;
+      rotate(angle+elapsed*.032,tilt,{time});
+    }else if(tween){
+      if(tween.start===null)tween.start=time;
+      const progress=Math.min(1,Math.max(0,(time-tween.start)/240)),eased=1-Math.pow(1-progress,3);
+      rotate(tween.angle+(tween.targetAngle-tween.angle)*eased,tween.tilt+(tween.targetTilt-tween.tilt)*eased,{time,sync:progress===1});
+      if(progress===1)tween=null;
+    }
+    if(playing||tween||pendingDrag)schedule();
+  }
+  const moveTo=(nextAngle,nextTilt)=>{
+    setPlaying(false);
+    if(reduced?.matches){rotate(nextAngle,nextTilt,{sync:true});return;}
+    tween={angle,tilt,targetAngle:nextAngle,targetTilt:nextTilt,start:null};schedule();
   };
   const fit=()=>{
     const width=Number(scene.dataset.cartonWidth)||214,height=Number(scene.dataset.cartonHeight)||282,depth=Number(scene.dataset.cartonDepth)||64;
@@ -314,61 +333,62 @@ function mountCartonDrag(container,onRotation){
   };
   const onMove=event=>{
     if(!drag||(event.pointerId!==undefined&&event.pointerId!==drag.pointerId))return;
-    rotate(drag.angle+(event.clientX-drag.x)*.5,Math.max(-65,Math.min(65,drag.tilt-(event.clientY-drag.y)*.35)),{immediate:true});
+    pendingDrag={angle:drag.angle+(event.clientX-drag.x)*.5,tilt:Math.max(-65,Math.min(65,drag.tilt-(event.clientY-drag.y)*.35))};schedule();
   };
-  const stop=()=>{
-    if(drag){
-      try{if(scene.hasPointerCapture?.(drag.pointerId))scene.releasePointerCapture(drag.pointerId);}catch{}
-    }
-    drag=null;
+  const stop=event=>{
+    if(event?.pointerId!==undefined&&drag&&event.pointerId!==drag.pointerId)return;
+    const pointerId=drag?.pointerId;drag=null;
+    if(pendingDrag){const pose=pendingDrag;pendingDrag=null;rotate(pose.angle,pose.tilt,{sync:true});}
+    if(!playing&&!tween){cancelAnimationFrame(frame);frame=0;}
     scene.classList.remove('dragging');
-    window.removeEventListener('pointermove',onMove);
-    window.removeEventListener('pointerup',stop);
-    window.removeEventListener('pointercancel',stop);
+    // Clear the drag before releasing capture: lostpointercapture can fire
+    // synchronously and must not attempt to release it a second time.
+    try{if(pointerId!==undefined&&scene.hasPointerCapture?.(pointerId))scene.releasePointerCapture(pointerId);}catch{}
+    window.removeEventListener('pointermove',onMove);window.removeEventListener('pointerup',stop);window.removeEventListener('pointercancel',stop);
+    syncControls();
   };
-  const reset=()=>{setPlaying(false);rotate(angle+wrap(-28-angle),-10);};
-  scene.addEventListener('pointerdown',event=>{
-    if(event.button!==0||event.target.closest('button,a,input'))return;
-    setPlaying(false);drag={x:event.clientX,y:event.clientY,angle,tilt,pointerId:event.pointerId};scene.classList.add('dragging');try{scene.setPointerCapture?.(event.pointerId);}catch{}
-    window.addEventListener('pointermove',onMove);
-    window.addEventListener('pointerup',stop);
-    window.addEventListener('pointercancel',stop);
+  const reset=()=>moveTo(angle+wrap(-28-angle),-10);
+  listen(scene,'pointerdown',event=>{
+    if(drag||event.button!==0||event.isPrimary===false||event.target.closest('button,a,input'))return;
+    setPlaying(false);drag={x:event.clientX,y:event.clientY,angle,tilt,pointerId:event.pointerId};scene.classList.add('dragging');
+    try{scene.setPointerCapture?.(event.pointerId);}catch{}
+    // Captured pointer events already arrive at the scene. Only use window
+    // movement as a fallback, avoiding duplicate work for bubbled events.
+    if(!scene.hasPointerCapture?.(event.pointerId))window.addEventListener('pointermove',onMove);
+    window.addEventListener('pointerup',stop);window.addEventListener('pointercancel',stop);
     scene.focus({preventScroll:true});event.preventDefault();
   });
-  scene.addEventListener('pointermove',onMove);
-  scene.addEventListener('pointerup',stop);scene.addEventListener('pointercancel',stop);scene.addEventListener('lostpointercapture',stop);
-  scene.addEventListener('keydown',event=>{
+  listen(scene,'pointermove',onMove);listen(scene,'pointerup',stop);listen(scene,'pointercancel',stop);listen(scene,'lostpointercapture',stop);
+  listen(scene,'keydown',event=>{
     if(event.target!==scene)return;
     const step=event.shiftKey?30:10;
     if(event.key==='Home'){event.preventDefault();reset();return;}
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
-    event.preventDefault();setPlaying(false);rotate(angle+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),Math.max(-65,Math.min(65,tilt+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0))));
+    event.preventDefault();moveTo(angle+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),Math.max(-65,Math.min(65,tilt+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0))));
   });
-  slider?.addEventListener('input',event=>{event.stopPropagation();setPlaying(false);rotate(angle+wrap(Number(slider.value)-angle),tilt,{immediate:true});});
+  listen(slider,'input',event=>{event.stopPropagation();setPlaying(false);rotate(angle+wrap(Number(slider.value)-angle),tilt,{sync:true});});
   // Preserve the live pose and avoid the document handler rebuilding the whole review.
-  slider?.addEventListener('change',event=>event.stopPropagation());
-  for(const button of viewButtons)button.addEventListener('click',()=>{
-    setPlaying(false);
-    const target={front:0,right:-90,back:-180,left:90}[button.dataset.cartonView];
-    rotate(angle+wrap(target-angle),-8);
-    // Highlight the focused face and update the location label.
+  listen(slider,'change',event=>event.stopPropagation());
+  for(const button of viewButtons)listen(button,'click',()=>{
     const faceName=button.dataset.cartonView;
+    moveTo(angle+wrap(faceAngles[faceName]-angle),-8);
     for(const face of scene.querySelectorAll('[data-carton-face]'))face.classList.toggle('face-focused',face.dataset.cartonFace===faceName);
     const locationEl=stage?.querySelector('.carton-location');
     if(locationEl)locationEl.textContent=({front:'Front',back:'Back',left:'Left side',right:'Right side'}[faceName]||faceName)+' face';
   });
-  stage?.querySelector('[data-carton-reset]')?.addEventListener('click',reset);
-  play?.addEventListener('click',()=>setPlaying(!playing));
-  const visibility=()=>{if(document.hidden)setPlaying(false);};document.addEventListener('visibilitychange',visibility);
+  listen(stage?.querySelector('[data-carton-reset]'),'click',reset);
+  listen(play,'click',()=>setPlaying(!playing));
+  listen(document,'visibilitychange',()=>{if(document.hidden){stop();setPlaying(false);}});
+  listen(window,'blur',()=>{stop();setPlaying(false);});
   const motion=()=>{if(reduced?.matches)setPlaying(false);if(play){play.disabled=Boolean(reduced?.matches);play.title=reduced?.matches?'Turntable motion is disabled by your reduced motion preference':'';}};
-  reduced?.addEventListener?.('change',motion);
-  const observer=globalThis.ResizeObserver?new ResizeObserver(fit):null;observer?.observe(scene);window.addEventListener('resize',fit);
+  listen(reduced,'change',motion);
+  const observer=globalThis.ResizeObserver?new ResizeObserver(fit):null;observer?.observe(scene);listen(window,'resize',fit);
   function cleanup(){
     if(disposed)return;disposed=true;
-    stop();
-    cancelAnimationFrame(frame);observer?.disconnect();window.removeEventListener('resize',fit);document.removeEventListener('visibilitychange',visibility);reduced?.removeEventListener?.('change',motion);
+    stop();cancelAnimationFrame(frame);frame=0;observer?.disconnect();for(const remove of listeners)remove();delete scene.dataset.dragMounted;
+    if(cartonInteraction?.scene===scene)cartonInteraction=null;
   }
-  releaseCartonInteraction=cleanup;fit();motion();rotate(angle,tilt,{immediate:true});
+  cartonInteraction={scene,container,cleanup};fit();motion();rotate(angle,tilt,{sync:true});
 }
 export function mountArtworkControls(container,{review,onRotation,viewport,onViewport}={}){
   if(!container)return;

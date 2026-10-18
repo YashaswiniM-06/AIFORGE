@@ -19,4 +19,4 @@ RUN npm install --omit=dev
 
 COPY . .
 EXPOSE 10000
-CMD ["npm", "start"]
+CMD ["node", "server.mjs"]

@@ -12,9 +12,10 @@ import { marketPresets } from './lib/market-presets.mjs';
 import { createHtmlReport } from './lib/html-report.mjs';
 import { sealReview, verifyReviewSeal } from './lib/audit-signature.mjs';
 import { answerFindingQuestion } from './lib/finding-qa.mjs';
-import { publicFiles } from './lib/public-files.mjs';
+import { publicFiles, createPublicFileSender } from './lib/public-files.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
+const sendPublicFile=createPublicFileSender(join(root,'public'));
 for(const filename of ['.env.local','.env']){
   if(!existsSync(join(root,filename)))continue;
   for(const line of readFileSync(join(root,filename),'utf8').split(/\r?\n/)){
@@ -47,7 +48,8 @@ let apiKeys=[...new Set(Array.from({length:5},(_,i)=>process.env['GEMINI_API_KEY
 let queue=Promise.resolve();const jobs=new Set();
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
 function dir(id){if(!/^[a-f0-9-]{36}$/.test(id))throw fail('Invalid review identifier.');return join(storage,'reviews',id);}
-const load=async id=>{const review=JSON.parse(await readFile(join(dir(id),'review.json'),'utf8'));refreshDependencies(review);return review;};
+const readReview=async id=>JSON.parse(await readFile(join(dir(id),'review.json'),'utf8'));
+const load=async id=>{const review=await readReview(id);refreshDependencies(review);return review;};
 async function save(r){const f=join(dir(r.id),'review.json'),tmp=f+'.'+randomUUID()+'.tmp';await writeFile(tmp,JSON.stringify(r,null,2),{mode:0o600});await rename(tmp,f);}
 const audit=(r,action,detail)=>r.audit.push({at:new Date().toISOString(),action,detail});
 const clearSeal=r=>{delete r.signature;};
@@ -142,25 +144,16 @@ function autoDerivePanelZones(artworkDoc, findings = []) {
     if (frontOnRight) {
       return {
         front: { page: page.number, box: [0.51, y0, 0.98, y1] },
-        back:  { page: page.number, box: [0.02, y0, 0.49, y1] },
-        left:  { page: page.number, box: [0.02, y0, 0.22, y1] },
-        right: { page: page.number, box: [0.78, y0, 0.98, y1] }
+        back:  { page: page.number, box: [0.02, y0, 0.49, y1] }
       };
     } else {
       return {
         front: { page: page.number, box: [0.02, y0, 0.49, y1] },
-        back:  { page: page.number, box: [0.51, y0, 0.98, y1] },
-        left:  { page: page.number, box: [0.02, y0, 0.22, y1] },
-        right: { page: page.number, box: [0.78, y0, 0.98, y1] }
+        back:  { page: page.number, box: [0.51, y0, 0.98, y1] }
       };
     }
   }
-  return {
-    front: { page: page.number, box: [0.02, y0, 0.98, y1] },
-    back:  { page: page.number, box: [0.02, y0, 0.98, y1] },
-    left:  { page: page.number, box: [0.02, y0, 0.28, y1] },
-    right: { page: page.number, box: [0.72, y0, 0.98, y1] }
-  };
+  return { front: { page: page.number, box: [0.02, y0, 0.98, y1] } };
 }
 async function writeInputs(r,files){
   if(!Array.isArray(files)||files.length<2||files.length>8)throw fail('Supply one artwork and at least one reference, up to eight files.');
@@ -268,7 +261,7 @@ async function createReview(input){
     audit(r,'review_created',r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.');await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;
   }catch(error){await rm(dir(r.id),{recursive:true,force:true});throw error;}
 }
-for(const id of await readdir(join(storage,'reviews'))){try{const r=await load(id);if(['queued','processing'].includes(r.status)){r.status='failed';r.error='The server stopped during processing. Create a new review to retry.';await save(r);}}catch{}}
+for(const id of await readdir(join(storage,'reviews'))){try{const r=await readReview(id);if(['queued','processing'].includes(r.status)){r.status='failed';r.error='The server stopped during processing. Create a new review to retry.';await save(r);}}catch{}}
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.pdf':'application/pdf','.json':'application/json','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};
 async function sendFile(req,res,path,name){const info=await stat(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream','Content-Length':info.size,'Cache-Control':'no-store',...(name?{'Content-Disposition':`attachment; filename="${name.replace(/[^a-zA-Z0-9._-]/g,'_')}"`}:{})});if(req.method==='HEAD')res.end();else createReadStream(path).on('error',()=>res.destroy()).pipe(res);}
 const server=createServer(async(req,res)=>{
@@ -285,11 +278,11 @@ const server=createServer(async(req,res)=>{
       res.end('Authentication required.');return;
     }
     if(!['GET','HEAD'].includes(req.method)&&req.headers['x-packproof-token']!==csrf)throw fail('Refresh the page to renew your request token.',403);
-    if(publicFiles.has(path)&&['GET','HEAD'].includes(method))return await sendFile(req,res,join(root,'public',publicFiles.get(path)));
+    if(publicFiles.has(path)&&['GET','HEAD'].includes(method))return await sendPublicFile(req,res,path);
     if(path==='/api/market-presets'&&method==='GET')return json(res,200,marketPresets);
     if(path==='/api/status'&&method==='GET'){const aiUsage=geminiStatus(),inProgress=aiUsage.lastOutcome==='Request in progress'||aiUsage.lastOutcome.startsWith('Waiting before retry');const aiConnection=!apiKeys.length?'not_configured':inProgress?'running':aiUsage.lastOutcome==='Live request completed'?'verified':aiUsage.lastOutcome==='No live request yet'?'configured':'attention';return json(res,200,{csrf,aiConfigured:Boolean(apiKeys.length),aiConnection,model,aiUsage,queued:jobs.size,limits:{files:8,fileMB:15,totalMB:30,pdfPages:12},scope:'Private workspace or access-controlled hosted demo; human release decision required.'});}
     if(path==='/api/reviews'&&method==='POST')return json(res,202,await createReview(await body(req)));
-    if(path==='/api/reviews'&&method==='GET'){const all=await Promise.all((await readdir(join(storage,'reviews'))).map(async id=>{try{const r=await load(id);return {id:r.id,name:r.name,createdAt:r.createdAt,finishedAt:r.finishedAt,status:r.status,counts:r.counts,engine:r.engine,sample:r.sample,parentId:r.parentId};}catch{return null;}}));return json(res,200,all.filter(Boolean).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
+    if(path==='/api/reviews'&&method==='GET'){const all=await Promise.all((await readdir(join(storage,'reviews'))).map(async id=>{try{const r=await readReview(id);return {id:r.id,name:r.name,createdAt:r.createdAt,finishedAt:r.finishedAt,status:r.status,counts:r.counts,engine:r.engine,sample:r.sample,parentId:r.parentId};}catch{return null;}}));return json(res,200,all.filter(Boolean).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
     const match=path.match(/^\/api\/reviews\/([a-f0-9-]{36})(?:\/(.*))?$/);
     if(match){const id=match[1],action=match[2],r=await load(id);
       if(!action&&method==='GET')return json(res,200,r);

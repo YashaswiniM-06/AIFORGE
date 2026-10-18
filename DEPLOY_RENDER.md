@@ -26,6 +26,10 @@ PackSignal is a single Node web service: Node serves the UI and API, while a pri
 
 ## Hosting boundaries
 
-The Blueprint uses a paid Render Starter web service with a 1 GB persistent disk because review files and audit records are stored on the server filesystem. At current listed rates, compute is about $7/month and the disk about $0.25/month, before bandwidth, taxes, or price changes; verify the [Render pricing page](https://render.com/pricing) before creating it. The disk is mounted at `/var/data`; the application writes there through `PACKPROOF_DATA_DIR`. Render's free web services have ephemeral storage and cannot attach a persistent disk.
+The Blueprint requests a paid Render Starter web service with a 1 GB persistent disk because review files and audit records are stored on the server filesystem. A manually created service may use a different compute plan: check the live service's instance type in the Render dashboard. Verify the [Render pricing page](https://render.com/pricing) before changing plans. The disk is mounted at `/var/data`; the application writes there through `PACKPROOF_DATA_DIR`. Render's free web services have ephemeral storage and cannot attach a persistent disk.
+
+Render's **“service is starting” loading page** appears before this application can respond. [Render documents](https://render.com/docs/free#spinning-down-on-idle) that Free web services sleep after 15 idle minutes and take about a minute to start again. Application animation, compression, or loading-screen changes cannot remove that infrastructure delay. An always-on paid service removes the free-tier idle sleep; changing the plan is a separate hosting/billing decision.
+
+The app serves Brotli/gzip-compressed UI assets, preloads its JavaScript modules, and uses private browser caching with ETag revalidation. Unchanged assets return `304`; changed files are fetched on the next visit so a deployment appears without clearing the browser cache. Review APIs, uploaded documents, and generated reports retain `no-store` responses.
 
 Basic Authentication protects the entire app and API. Use a new, unique password for the hosted demo and rotate any provider keys that were pasted into chat before adding credentials to Render. Keep the judge password out of the public source repository.
