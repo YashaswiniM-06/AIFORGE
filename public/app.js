@@ -338,12 +338,19 @@ async function openReview(id, initialReview = null) {
     current = nextReview;
     rememberReviewSummary(nextReview);
     if (hasChanged) {
-      const prior = current.parentId
-        ? await api("/reviews/" + current.parentId)
-        : null;
-      if (requestVersion !== routeVersion) return;
-      previousReview = prior;
+      previousReview = null;
       renderReview();
+      if (current.parentId) {
+        try {
+          const prior = await api("/reviews/" + current.parentId, { timeoutMs: 10_000 });
+          if (requestVersion !== routeVersion) return;
+          previousReview = prior;
+          if (tab === "revisions") renderReview();
+        } catch {
+          // The revision itself is usable even if its optional comparison image cannot load.
+          if (requestVersion === routeVersion) previousReview = null;
+        }
+      }
     }
     if (["queued", "processing"].includes(current.status) || ["pending", "running"].includes(current.aiStatus))
       timer = setTimeout(() => openReview(id), 1300);
