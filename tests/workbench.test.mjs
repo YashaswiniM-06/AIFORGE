@@ -73,6 +73,7 @@ test('new uploads preview the complete page as illustrative front art without in
   assert.match(html,/Full artwork page · preview only/);
   assert.match(html,/Map the real package faces before treating this illustrative 3D fold as package-specific/);
   assert.match(html,/Full artwork page · illustrative front only/);
+  assert.match(html,/Illustrative front · 0 faces mapped/);
   assert.match(html,/--carton-w:198px;--carton-h:260px;--carton-d:58px/);
   assert.doesNotMatch(html,/Evidence on Front|Mapped face Front|carton-evidence-box/);
   assert.deepEqual(uploaded,before,'preview must not save geometry or change findings');
