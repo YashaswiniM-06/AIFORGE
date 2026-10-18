@@ -367,7 +367,7 @@ function renderReview() {
     selectedFindingId = r.findings.find((item) => item.status === "issue" || item.status === "review")?.id || r.findings[0].id;
     activeEvidenceIndex = 0;
   }
-  const statusCounts = tab === "findings" ? "" : `<div class="counts">${["issue", "review", "unable", "match"].map((s) => `<button class="count ${s}" data-action="filter" data-filter="${s}"><b>${r.counts[s]}</b><span>${names[s]}</span></button>`).join("")}</div>`;
+  const statusCounts = tab === "findings" || !r.counts ? "" : `<div class="counts">${["issue", "review", "unable", "match"].map((s) => `<button class="count ${s}" data-action="filter" data-filter="${s}"><b>${r.counts[s]}</b><span>${names[s]}</span></button>`).join("")}</div>`;
   if (["queued", "processing"].includes(r.status)) {
     shell(
       `<div class="progress"><div class="spinner"></div><div class="eyebrow">COMPILING YOUR REVIEW</div><h2>${esc(r.name)}</h2><p class="subtle">${esc(r.progress)}</p><div class="notice info">Files are being read and checked. This review will stay in your history if you leave this page.</div><button class="secondary" data-action="home">Back to workspace</button></div>`,
