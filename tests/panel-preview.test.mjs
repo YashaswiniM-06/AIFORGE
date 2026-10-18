@@ -14,6 +14,14 @@ test('each organizer face previews its own source crop without creating a mappin
   const zones=sourcePreviewZones(r);zones.front.box[0]=0;
   assert.notEqual(sourcePreviewZones(r).front.box[0],0);
 });
+test('new upload face mapper labels the whole-page illustration and asks for a real face map',()=>{
+  const r=review();r.id='new-upload';r.sample=undefined;r.options.panelZones={};
+  const html=selectedFacePreview(r,r.options.panelZones,'front');
+  assert.match(html,/Full page preview · not a saved map/);
+  assert.match(html,/complete supplied page is shown as an illustration only/);
+  assert.doesNotMatch(html,/Organizer preview/);
+  assert.match(panelZoneMapper(r),/Draw each supplied artwork face/);
+});
 test('mapped faces override sample crops and show the correct page and draft status',()=>{
   const r=review(),zones={front:{page:2,box:[.1,.2,.7,.8]}};
   const html=selectedFacePreview(r,zones,'front',true);

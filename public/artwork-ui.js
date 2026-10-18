@@ -43,13 +43,17 @@ const organizerVisualZones={
   front:{page:1,box:[.528,.375,.82,.786]},
   right:{page:1,box:[.834,.375,.993,.786]},
 };
-// Universal auto-panel derivation for any package artwork.
-// Generates sensible, textured 3D carton panels for ANY arbitrary upload so cartons are never blank.
+// Non-persistent visual crops for the established built-in samples. Unknown
+// uploads show a whole-page illustration until a reviewer maps real faces.
 export function sourcePreviewZones(review){
   if(review?.sample==='organizer')return structuredClone(organizerVisualZones);
   if(!review||review.id==='review-demo')return {};
   const doc=artwork(review),page=doc?.pages?.[0];
   if(!page)return {};
+  // A new upload has no trustworthy face map. Show its complete first page as
+  // an illustrative front only; a reviewer must define the actual package faces.
+  // Built-in samples retain their established preview geometry below.
+  if(!review.sample)return {front:{page:page.number,box:[0,0,1,1]}};
   const pw=Number(page.width)||1200,ph=Number(page.height)||800,ratio=pw/ph;
   const pageBoxes=(review?.findings||[])
     .flatMap(f=>f.evidence||[])
@@ -156,34 +160,40 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   const visualZones={...previewZones,...zones};
   const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
   const samplePreview=Object.keys(previewZones).some(name=>!zones[name]?.box);
+  const genericFullPagePreview=!review.sample&&samplePreview;
   let contextZone=null,selectedPanelFound=false;
   if(selected?.item.box){
     const [x0,y0,x1,y1]=selected.item.box,center=[(x0+x1)/2,(y0+y1)/2];
-    contextZone=Object.entries(visualZones).find(([,zone])=>zone.page===selected.item.page&&zone.box&&center[0]>=zone.box[0]&&center[0]<=zone.box[2]&&center[1]>=zone.box[1]&&center[1]<=zone.box[3]);
+    const contextZones=genericFullPagePreview?zones:visualZones;
+    contextZone=Object.entries(contextZones).find(([,zone])=>zone.page===selected.item.page&&zone.box&&center[0]>=zone.box[0]&&center[0]<=zone.box[2]&&center[1]>=zone.box[1]&&center[1]<=zone.box[3]);
     selectedPanelFound=Boolean(contextZone);
   }
-  if(!contextZone)contextZone=Object.entries(visualZones).find(([name])=>name==='front')||Object.entries(visualZones)[0]||null;
+  if(!contextZone){const contextZones=genericFullPagePreview?zones:visualZones;contextZone=Object.entries(contextZones).find(([name])=>name==='front')||Object.entries(contextZones)[0]||null;}
   let visual='';
   if(mode==='3d'){
     const targetAngles={front:0,right:-90,back:-180,left:90};
     const defaultAngle=selectedPanelFound&&contextZone?.[0] in targetAngles?targetAngles[contextZone[0]]:-28;
-    const dims=foldedDimensions(review,visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:defaultAngle,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
+    const dims=foldedDimensions(review,genericFullPagePreview?zones:visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:defaultAngle,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
     const faceClasses={front:'carton-front',back:'carton-back',left:'carton-left',right:'carton-right',top:'carton-top',bottom:'carton-bottom'};
     const faces=Object.entries(faceClasses).map(([name,css])=>{
       const zone=visualZones[name]?.box?{...visualZones[name],name}:null;
       const reviewerMapped=Boolean(zones[name]?.box);
       const faceState=reviewerMapped?'mapped':samplePreview&&zone?'preview-only':'unmapped';
       const isFindingFace=selectedPanelFound&&contextZone&&contextZone[0]===name;
-      return `<div class="carton-face ${css} ${faceState} ${isFindingFace?'face-focused':''}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${samplePreview&&zone?' visual sample preview':''}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${zone?faceEvidenceBoxes(review,zone,finding?.id,activeEvidenceIndex):''}</div>`;
+      const facePreviewLabel=genericFullPagePreview&&name==='front'?' full-page illustration only':samplePreview&&zone?' visual sample preview':'';
+      const evidenceBoxes=zone&&(!genericFullPagePreview||reviewerMapped)?faceEvidenceBoxes(review,zone,finding?.id,activeEvidenceIndex):'';
+      return `<div class="carton-face ${css} ${faceState} ${isFindingFace?'face-focused':''}" data-carton-face="${name}" aria-label="${faceLabels[name]} panel${facePreviewLabel}">${zone?faceTexture(review,zone):`<span class="carton-unmapped">${esc(faceLabels[name])}<br>Artwork not mapped</span>`}${reviewerMapped?facePins(review,zone,finding?.id):''}${evidenceBoxes}</div>`;
     }).join('');
 
     const contextName=contextZone?(faceLabels[contextZone[0]]||contextZone[0]):'';
-    const location=samplePreview?(review.sample==='organizer'?'Organizer artwork · illustrative fold':'3D package preview · illustrative fold'):contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
-    const prompt=!mappedCount&&!samplePreview
-      ?`<div class="carton-map-prompt"><div><b>Bring your artwork onto the package</b><span>Map the supplied front, back, and side panels to preview this carton.</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
+    const location=genericFullPagePreview?'Full artwork page · illustrative front only':samplePreview?(review.sample==='organizer'?'Organizer artwork · illustrative fold':'3D package preview · illustrative fold'):contextZone?`${selectedPanelFound?'Evidence on':'Mapped face'} ${contextName}`:'Artwork faces not mapped';
+    const prompt=!mappedCount&&(!samplePreview||genericFullPagePreview)
+      ?`<div class="carton-map-prompt"><div><b>Bring your artwork onto the package</b><span>${genericFullPagePreview?'Map the real package faces before treating this illustrative 3D fold as package-specific.':'Map the supplied front, back, and side panels to preview this carton.'}</span></div><button type="button" class="secondary" data-action="tab" data-tab="sources">Map faces →</button></div>`
       :'';
     const depthNote=mappedCount&&dims.measured?'Proportions follow your mapped faces.':'Carton proportions are illustrative.';
-    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||samplePreview)?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote} Use 2D proof for exact artwork inspection.</p></div>`;
+    const studioLabel=genericFullPagePreview?'Full artwork page · preview only':samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`;
+    const caption=genericFullPagePreview?'The full supplied page is shown on an illustrative front; map real faces for package-specific artwork context.':samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote;
+    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${studioLabel}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||samplePreview)?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${caption} Use 2D proof for exact artwork inspection.</p></div>`;
   }else{
     const regions=artworkEvidence.filter(({item})=>item.page===page.number&&Array.isArray(item.box));
     const issue=finding?.status==='issue';

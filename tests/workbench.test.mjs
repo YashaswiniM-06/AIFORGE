@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { artworkMap, findingVisual, workbenchArtwork } from '../public/artwork-ui.js';
+import { artworkMap, findingVisual, sourcePreviewZones, workbenchArtwork } from '../public/artwork-ui.js';
 import { panelZoneMapper } from '../public/panel-zones.js';
 import { reviewPipeline } from '../public/review-pipeline.js';
 
@@ -61,6 +61,40 @@ test('3D context keeps an interactive neutral carton for a non-sample review wit
   assert.match(html,/Artwork not mapped/);
   assert.doesNotMatch(html,/<img[^>]+Mapped /);
   assert.match(html,/Map faces →/);
+});
+
+test('new uploads preview the complete page as illustrative front art without inventing face mappings',()=>{
+  const uploaded={...review,id:'review-upload',sample:undefined,options:{panelZones:{}}};
+  const before=structuredClone(uploaded);
+  assert.deepEqual(sourcePreviewZones(uploaded),{front:{page:1,box:[0,0,1,1]}});
+  const html=workbenchArtwork(uploaded,finding,{mode:'3d'});
+  assert.match(html,/carton-face carton-front preview-only/);
+  assert.match(html,/full-page illustration only/);
+  assert.match(html,/Full artwork page · preview only/);
+  assert.match(html,/Map the real package faces before treating this illustrative 3D fold as package-specific/);
+  assert.match(html,/Full artwork page · illustrative front only/);
+  assert.match(html,/--carton-w:198px;--carton-h:260px;--carton-d:58px/);
+  assert.doesNotMatch(html,/Evidence on Front|Mapped face Front|carton-evidence-box/);
+  assert.deepEqual(uploaded,before,'preview must not save geometry or change findings');
+});
+
+test('existing Fieldday sample preview geometry stays unchanged',()=>{
+  const sample={...review,id:'fieldday-preview',sample:'fieldday',documents:[{...review.documents[0],pages:[{...review.documents[0].pages[0],width:1800,height:860}]}],options:{panelZones:{
+    front:{page:1,box:[40/1200,60/860,510/1200,802/860]},
+    back:{page:1,box:[532/1200,60/860,1160/1200,802/860]},
+  }}};
+  const before=structuredClone(sample);
+  assert.deepEqual(sourcePreviewZones(sample),{
+    back:{page:1,box:[.02,.05,.25,.95]},
+    left:{page:1,box:[.26,.05,.49,.95]},
+    front:{page:1,box:[.50,.05,.74,.95]},
+    right:{page:1,box:[.75,.05,.98,.95]},
+  });
+  const html=workbenchArtwork(sample,finding,{mode:'3d'});
+  assert.match(html,/carton-face carton-left preview-only/);
+  assert.match(html,/carton-face carton-right preview-only/);
+  assert.match(html,/Source artwork preview/);
+  assert.deepEqual(sample,before,'the locked sample remains untouched');
 });
 
 test('organizer sample gets a non-persistent visual carton mockup from complete panel crops',()=>{

@@ -104,6 +104,38 @@ try {
   assert.ok(review.documents.some(document => document.role === 'artwork' && document.pages.length));
   assert.ok(review.documents.some(document => document.role === 'spec' && document.cells.length));
 
+  const uploaded = await json(await fetch(`${base}/api/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      name: 'New upload panel-map smoke test',
+      mode: 'local',
+      files: [
+        {
+          name: 'new-label.png',
+          role: 'artwork',
+          base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jg4QAAAAASUVORK5CYII=',
+        },
+        {
+          name: 'product-spec.json',
+          role: 'spec',
+          base64: Buffer.from(JSON.stringify({ product_name: 'Smoke-test product', net_quantity: '100 g' })).toString('base64'),
+        },
+      ],
+    }),
+  }));
+  const uploadDeadline = Date.now() + 120_000;
+  let uploadedReview;
+  while (Date.now() < uploadDeadline) {
+    uploadedReview = await json(await fetch(`${base}/api/reviews/${uploaded.id}`));
+    if (uploadedReview.status === 'ready' || uploadedReview.status === 'failed') break;
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  assert.equal(uploadedReview?.status, 'ready', uploadedReview?.error || 'Uploaded artwork review did not finish.');
+  assert.equal(uploadedReview.sample, undefined, 'An uploaded review must remain a user review, not a built-in sample.');
+  assert.deepEqual(uploadedReview.options.panelZones, {}, 'New uploads must not get guessed panel rectangles.');
+  assert.equal(uploadedReview.options.panelZoneSource, undefined, 'New uploads must not claim an automated panel map.');
+
   const finding = review.findings[0];
   const decision = await json(await fetch(`${base}/api/reviews/${created.id}/decisions`, {
     method: 'POST',
@@ -135,6 +167,7 @@ try {
       'read-only credential-free Settings UI and AI-default fallback',
       'mutation token enforcement',
       'organizer PDF/XLSX ingestion and review completion',
+      'new image upload review without guessed packaging panel geometry',
       'reviewer decision and audit event',
       'portable HTML report and signed proof verification',
       'PDF report generation',

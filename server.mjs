@@ -113,48 +113,6 @@ const samples={
 };
 const fielddaySampleZones={front:{page:1,box:[40/1200,60/860,510/1200,802/860]},back:{page:1,box:[532/1200,60/860,1160/1200,802/860]}};
 const sampleZones=sample=>['fieldday','clean','conflict','signals'].includes(sample)?structuredClone(fielddaySampleZones):{};
-function autoDerivePanelZones(artworkDoc, findings = []) {
-  const page = artworkDoc?.pages?.[0];
-  if (!page) return {};
-  const pw = Number(page.width) || 1200, ph = Number(page.height) || 800, ratio = pw / ph;
-  const pageBoxes = findings
-    .flatMap(f => f.evidence || [])
-    .filter(e => e.role === 'artwork' && (!e.page || e.page === page.number) && Array.isArray(e.box) && e.box.length === 4)
-    .map(e => e.box);
-
-  let y0 = 0.05, y1 = 0.95;
-  if (pageBoxes.length >= 2) {
-    const minY = Math.min(...pageBoxes.map(b => b[1])), maxY = Math.max(...pageBoxes.map(b => b[3]));
-    y0 = Math.max(0.02, Math.min(0.20, minY - 0.06));
-    y1 = Math.min(0.98, Math.max(0.78, maxY + 0.06));
-  }
-
-  if (ratio >= 1.45) {
-    return {
-      back:  { page: page.number, box: [0.02, y0, 0.25, y1] },
-      left:  { page: page.number, box: [0.26, y0, 0.49, y1] },
-      front: { page: page.number, box: [0.50, y0, 0.74, y1] },
-      right: { page: page.number, box: [0.75, y0, 0.98, y1] }
-    };
-  }
-  if (ratio >= 1.1) {
-    const brandFinding = findings.find(f => /brand|identity|variant|product|title/i.test(f.title || f.rule?.id || ''));
-    const brandBox = brandFinding?.evidence?.find(e => e.role === 'artwork' && Array.isArray(e.box))?.box;
-    const frontOnRight = brandBox ? ((brandBox[0] + brandBox[2]) / 2 > 0.5) : true;
-    if (frontOnRight) {
-      return {
-        front: { page: page.number, box: [0.51, y0, 0.98, y1] },
-        back:  { page: page.number, box: [0.02, y0, 0.49, y1] }
-      };
-    } else {
-      return {
-        front: { page: page.number, box: [0.02, y0, 0.49, y1] },
-        back:  { page: page.number, box: [0.51, y0, 0.98, y1] }
-      };
-    }
-  }
-  return { front: { page: page.number, box: [0.02, y0, 0.98, y1] } };
-}
 async function writeInputs(r,files){
   if(!Array.isArray(files)||files.length<2||files.length>8)throw fail('Supply one artwork and at least one reference, up to eight files.');
   if(files.filter(f=>f.role==='artwork').length!==1||!files.some(f=>['spec','rules'].includes(f.role)))throw fail('Choose one artwork and at least one product specification or rulebook.');
@@ -179,14 +137,6 @@ async function processReview(id){
     r.warnings=r.documents.flatMap(d=>d.warnings.map(w=>d.name+': '+w));r.engine='Local extraction + exact comparisons';
     r.aiStatus=r.mode==='ai'?'pending':'not_requested';
     refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId)r.revision=compareRevisions(await load(r.parentId),r);
-    if(!r.sample&&!Object.keys(r.options?.panelZones||{}).length){
-      const artDoc=r.documents.find(d=>d.role==='artwork');
-      if(artDoc){
-        r.options.panelZones=autoDerivePanelZones(artDoc,r.findings||[]);
-        r.options.panelZoneSource='automated packaging panel derivation';
-        refreshDependencies(r);Object.assign(r,analyze(r));
-      }
-    }
     r.status='ready';r.progress='Local checks complete';r.finishedAt=new Date().toISOString();audit(r,'local_analysis_completed',`${r.findings.length} findings; ${r.engine}`);await save(r);
 
     if(r.mode==='ai'){

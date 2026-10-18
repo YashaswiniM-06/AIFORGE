@@ -27,9 +27,10 @@ export function selectedFacePreview(review, zones, face, draft = false) {
   // Clamp preview height to 180px and compute width from ratio
   const previewH=180;
   const previewW=Math.min(Math.round(previewH*ratio), 300);
-  const caption=mapped?(draft?'Unsaved face crop':'Saved face crop'):'Organizer preview · not a saved map';
+  const caption=mapped?(draft?'Unsaved face crop':'Saved face crop'):review.sample?'Organizer preview · not a saved map':'Full page preview · not a saved map';
+  const copy=mapped?'This crop is the artwork used on this carton face.':review.sample?'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.':'The complete supplied page is shown as an illustration only. Draw the actual face rectangle below to create a package-specific mapping.';
   // Use CSS variables so the absolute img is reliably clipped inside the container
-  return `<div class="zone-preview-crop" style="width:${previewW}px;height:${previewH}px;flex:none"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${mapped?'This crop is the artwork used on this carton face.':'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.'}</p></div>`;
+  return `<div class="zone-preview-crop" style="width:${previewW}px;height:${previewH}px;flex:none"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${copy}</p></div>`;
 }
 
 
