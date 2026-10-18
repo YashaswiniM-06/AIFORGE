@@ -66,9 +66,10 @@ test('carton drag continues from the supplied pose and then from a slider adjust
   assert.equal(h.scene.capture,null);
 });
 
-test('a face shortcut and subsequent drag share the same pose without jumping to the default',t=>{
+test('a completed face shortcut and subsequent drag share the same pose without jumping to the default',t=>{
   const h=setup(t);
   fire(h.faces.right,'click');
+  h.frame(100);h.frame(340);
   assert.deepEqual(h.rotations.at(-1),[-90,-8]);
   assert.equal(h.faces.right.getAttribute('aria-pressed'),'true');
   h.drag([100,100],[140,100]);

@@ -376,7 +376,7 @@ function mountCartonDrag(container,onRotation){
     if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key))return;
     event.preventDefault();moveTo(angle+(event.key==='ArrowLeft'?-step:event.key==='ArrowRight'?step:0),Math.max(-65,Math.min(65,tilt+(event.key==='ArrowUp'?-step:event.key==='ArrowDown'?step:0))));
   });
-  listen(slider,'input',event=>{event.stopPropagation();setPlaying(false);rotate(angle+wrap(Number(slider.value)-angle),tilt,{sync:true});});
+  listen(slider,'input',event=>{event.stopPropagation();const nextAngle=Number(slider.value);setPlaying(false);rotate(nextAngle,tilt,{sync:true});});
   // Preserve the live pose and avoid the document handler rebuilding the whole review.
   listen(slider,'change',event=>event.stopPropagation());
   for(const button of viewButtons)listen(button,'click',()=>{
