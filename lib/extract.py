@@ -135,11 +135,17 @@ def report(review_path, output):
     for w in r.get('warnings',[]):story.append(p('Review note: '+w))
     for limit in r.get('coverage',{}).get('limits',[]):story.append(p('Coverage: '+limit))
     for f in r.get('findings',[]):
-        story.extend([p(f"{f['status'].upper()} | {f['title']}",'PPH'),p('Expected: '+str(f.get('expected',''))),p('Observed: '+str(f.get('observed',''))),p(f.get('explanation',''))])
-        if f.get('rule'):story.append(p('Rule: '+f['rule'].get('text','')))
-        for ev in f.get('evidence',[]):story.append(p(f"Evidence - {ev.get('name','')} {ev.get('location','')}: {ev.get('quote','')}"))
+        finding_story=[p(f"{f['status'].upper()} | {f['title']}",'PPH'),p('Expected: '+str(f.get('expected',''))),p('Observed: '+str(f.get('observed',''))),p(f.get('explanation',''))]
+        if f.get('rule'):finding_story.append(p('Rule: '+f['rule'].get('text','')))
+        seen_evidence=set()
+        for ev in f.get('evidence',[]):
+            evidence_key=json.dumps({key:ev.get(key) for key in ('documentId','name','location','page','box','quote')},sort_keys=True,ensure_ascii=False)
+            if evidence_key in seen_evidence:continue
+            seen_evidence.add(evidence_key)
+            finding_story.append(p(f"Evidence - {ev.get('name','')} {ev.get('location','')}: {ev.get('quote','')}"))
         decision=r.get('decisions',{}).get(f['id'])
-        if decision:story.append(p(f"Reviewer: {decision['disposition']} - {decision.get('note','')} ({decision['at']})"+(' [Needs review: source comparison changed]' if decision.get('stale') else '')))
+        if decision:finding_story.append(p(f"Reviewer: {decision['disposition']} - {decision.get('note','')} ({decision['at']})"+(' [Needs review: source comparison changed]' if decision.get('stale') else '')))
+        story.append(KeepTogether(finding_story+[Spacer(1,2)]))
     if r.get('revision'):
         story.append(p('Revision comparison','PPH'))
         story.append(p('Previous review: '+r['revision']['previousId']))
@@ -163,11 +169,11 @@ def report(review_path, output):
                 if height>600:width*=600/height;height=600
                 story.extend([p(f"{art['name']} - page {page['number']} ({page['method']})"),ReportImage(str(image),width=width,height=height),Spacer(1,12)])
     def footer(c,d):
-        c.setFont('Helvetica',8);c.setFillColor(HexColor('#68766f'));c.drawString(42,25,'PackSignal - evidence-led review; human release decision required')
+        c.setFont('Helvetica',8);c.setFillColor(HexColor('#68766f'));c.drawString(42,28,'PackSignal - human release decision required')
         if r.get('signature'):
-            c.drawCentredString(A4[0]/2,25,'Seal '+str(r['signature'].get('payloadHash',''))[:16])
-        c.drawRightString(A4[0]-42,25,str(d.page))
-    SimpleDocTemplate(output,pagesize=A4,rightMargin=42,leftMargin=42,topMargin=42,bottomMargin=42).build(story,onFirstPage=footer,onLaterPages=footer)
+            c.drawCentredString(A4[0]/2,12,'Seal '+str(r['signature'].get('payloadHash',''))[:16])
+        c.drawRightString(A4[0]-42,28,str(d.page))
+    SimpleDocTemplate(output,pagesize=A4,rightMargin=42,leftMargin=42,topMargin=42,bottomMargin=52).build(story,onFirstPage=footer,onLaterPages=footer)
     return {'path':output}
 
 if __name__=='__main__':
