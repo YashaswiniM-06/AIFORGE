@@ -305,6 +305,7 @@ function historyTable() {
 }
 function renderReviewLoadError(id, error) {
   clearTimeout(timer);
+  view = "review";
   const message = error?.message || "The server did not return this review.";
   $("#app").innerHTML =
     `<main class="boot" role="alert"><div class="eyebrow">REVIEW UNAVAILABLE</div><h1>Couldn’t open this review.</h1><p>${esc(message)}</p><p>Try again, or open the workspace to see which reviews are currently available on this server.</p><div class="actions"><button class="primary" data-action="retry-review" data-id="${esc(id)}">Retry</button><button class="secondary" data-action="home">Open workspace</button></div></main>`;
