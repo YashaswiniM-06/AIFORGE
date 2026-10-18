@@ -9,6 +9,8 @@ import { startWalkthrough, stopWalkthrough } from "./walkthrough.js";
 import { panelZoneMapper, mountPanelZoneMapper } from "./panel-zones.js";
 import { reviewPipeline } from "./review-pipeline.js";
 import { storageDisclosure } from "./storage-disclosure.js";
+import { engineStatusCopy } from "./engine-status-copy.js";
+import { mergeReviewSummary } from "./review-summary.js";
 import "./review-actions.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -143,23 +145,11 @@ function dashboard() {
   clearTimeout(timer);
   history.replaceState(null, "", "#");
   shell(
-    `<section class="hero"><div><div class="eyebrow">THE PACKAGING COMPILER</div><h1>Ready for print starts<br>with proof.</h1><p>Turn product information, review rules, and artwork into an evidence-backed review. See what matches, what differs, and what needs your judgment.</p><div class="actions"><button class="primary" data-action="upload">+ New artwork review</button><button class="secondary" data-action="sample" data-sample="organizer">Explore organizer sample ↗</button><button class="textbutton tour-start" data-action="tour">First time? Start guided tour →</button></div></div><div class="hero-art" aria-hidden="true"><div class="package">proof.<small>EVERY DETAIL COUNTS</small></div><div class="proof-tag"><span>✓</span> Evidence connected</div></div></section>${analyticsView()}<div class="section-head"><div><h2>Start with the evidence</h2><p>Two complementary cases. Real source ambiguity and a controlled revision.</p></div></div><section class="cards"><article class="sample-card"><div class="tag">01 / OFFICIAL CHALLENGE FILES</div><h3>Dancing Fish · Berry Crunch</h3><p>A carton dieline and draft content sheet. Inspect ingredient discrepancies, nutrition ambiguity, and claims that need supporting evidence.</p><div class="file-chips"><span class="file-chip">1 artwork PDF</span><span class="file-chip">1 content spreadsheet</span><span class="file-chip">United States</span></div><button class="secondary" data-action="sample" data-sample="organizer">Review organizer files <span>→</span></button></article><article class="sample-card"><div class="tag">02 / CONTROLLED FICTIONAL CASE</div><h3>Fieldday · Original Oat Drink</h3><p>Find a quantity mismatch and missing storage copy. Then check a corrected revision that introduces a different omission.</p><div class="file-chips"><span class="file-chip">12 company checks</span><span class="file-chip">V1 → V2</span><span class="file-chip">Synthetic</span></div><button class="secondary" data-action="sample" data-sample="fieldday">Explore the revision story <span>→</span></button></article></section><section class="workflow" aria-label="Review process"><div><span class="step-num">01</span><b>Read the source</b><p>Keep facts attached to documents.</p></div><div><span class="step-num">02</span><b>Resolve uncertainty</b><p>Confirm drafts and conflicting values.</p></div><div><span class="step-num">03</span><b>Inspect the proof</b><p>Compare rules with artwork evidence.</p></div><div><span class="step-num">04</span><b>Review the revision</b><p>Recheck fixes and catch regressions.</p></div></section><section id="history"><div class="section-head"><div><h2>Recent reviews</h2><p>Saved locally with source files and decision history.</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}</section><p class="footer-note">Scope: supplied sources and supported checks. PackSignal supports a human release decision; it does not certify legal compliance or authorize printing.</p>`,
+    `<section class="hero"><div><div class="eyebrow">THE PACKAGING COMPILER</div><h1>Ready for print starts<br>with proof.</h1><p>Turn product information, review rules, and artwork into an evidence-backed review. See what matches, what differs, and what needs your judgment.</p><div class="actions"><button class="primary" data-action="upload">+ New artwork review</button><button class="secondary" data-action="sample" data-sample="organizer">Explore organizer sample ↗</button><button class="textbutton tour-start" data-action="tour">First time? Start guided tour →</button></div></div><div class="hero-art" aria-hidden="true"><div class="package">proof.<small>EVERY DETAIL COUNTS</small></div><div class="proof-tag"><span>✓</span> Evidence connected</div></div></section>${analyticsView()}<div class="section-head"><div><h2>Start with the evidence</h2><p>Two complementary cases. Real source ambiguity and a controlled revision.</p></div></div><section class="cards"><article class="sample-card"><div class="tag">01 / OFFICIAL CHALLENGE FILES</div><h3>Dancing Fish · Berry Crunch</h3><p>A carton dieline and draft content sheet. Inspect ingredient discrepancies, nutrition ambiguity, and claims that need supporting evidence.</p><div class="file-chips"><span class="file-chip">1 artwork PDF</span><span class="file-chip">1 content spreadsheet</span><span class="file-chip">United States</span></div><button class="secondary" data-action="sample" data-sample="organizer">Review organizer files <span>→</span></button></article><article class="sample-card"><div class="tag">02 / CONTROLLED FICTIONAL CASE</div><h3>Fieldday · Original Oat Drink</h3><p>Find a quantity mismatch and missing storage copy. Then check a corrected revision that introduces a different omission.</p><div class="file-chips"><span class="file-chip">12 company checks</span><span class="file-chip">V1 → V2</span><span class="file-chip">Synthetic</span></div><button class="secondary" data-action="sample" data-sample="fieldday">Explore the revision story <span>→</span></button></article></section><section class="workflow" aria-label="Review process"><div><span class="step-num">01</span><b>Read the source</b><p>Keep facts attached to documents.</p></div><div><span class="step-num">02</span><b>Resolve uncertainty</b><p>Confirm drafts and conflicting values.</p></div><div><span class="step-num">03</span><b>Inspect the proof</b><p>Compare rules with artwork evidence.</p></div><div><span class="step-num">04</span><b>Review the revision</b><p>Recheck fixes and catch regressions.</p></div></section><section id="history"><div class="section-head"><div><h2>Recent reviews</h2><p>${esc(workspaceDataLocation.historyNotice)}</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}</section><p class="footer-note">Scope: supplied sources and supported checks. PackSignal supports a human release decision; it does not certify legal compliance or authorize printing.</p>`,
   );
 }
 function rememberReviewSummary(review) {
-  const summary = {
-    id: review.id,
-    name: review.name,
-    createdAt: review.createdAt,
-    finishedAt: review.finishedAt,
-    status: review.status,
-    counts: review.counts,
-    engine: review.engine,
-    sample: review.sample,
-    parentId: review.parentId,
-  };
-  reviews = [summary, ...reviews.filter((item) => item.id !== review.id)]
-    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+  reviews = mergeReviewSummary(reviews, review);
 }
 function renderDashboardReviewData() {
   if (view !== "dashboard") return;
@@ -167,7 +157,7 @@ function renderDashboardReviewData() {
   if (analytics) analytics.outerHTML = analyticsView();
   const historySection = $("#history");
   if (historySection)
-    historySection.innerHTML = `<div class="section-head"><div><h2>Recent reviews</h2><p>Saved locally with source files and decision history.</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}`;
+    historySection.innerHTML = `<div class="section-head"><div><h2>Recent reviews</h2><p>${esc(workspaceDataLocation.historyNotice)}</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}`;
 }
 function refreshReviews() {
   if (!reviewsRequest) {
@@ -516,24 +506,15 @@ async function runSample(sample, button) {
 }
 async function settings() {
   status = await api("/status");
-  const connectionCopy = status.aiConnection === "verified"
-    ? "Multimodal packaging vision and regulatory reasoning engine is operational and verified. Background reviews and visual proofs are active."
-    : status.aiConnection === "configured"
-      ? "Packaging Vision AI is configured and ready. It will engage automatically on the first review with smart failover."
-      : status.aiConnection === "running"
-        ? "Packaging Vision AI is actively analyzing artwork and corroborating evidence in the background."
-        : status.aiConnection === "attention"
-          ? `Packaging Vision AI is in standby (${status.aiUsage.lastOutcome}). Deterministic checks and visual proof chains remain fully available.`
-          : "Deterministic comparison engine is active. Packaging Vision AI can be connected via server-side configuration.";
+  const copy = engineStatusCopy(status);
   dialog(
     "PackSignal Prepress Engine",
-    `<section class="panel"><div class="eyebrow">PACKSIGNAL · CORE ARCHITECTURE</div><h3>${esc(aiStatusLabel())}</h3><p>${esc(connectionCopy)}</p><p><b>Architecture:</b> Multimodal Vision + Deterministic Verification<br><b>Engine Pipeline:</b> Automated Prepress Vector Inspection & Tabular Reconciliation<br><b>Availability:</b> High-availability failover cluster active<br><b>Credential Isolation:</b> Server-side only; zero browser token exposure</p></section>${usageSummary()}<p class="subtle">PackSignal compiles supplied product specifications, company rules, and packaging artwork into an inspectable proof chain before print.</p>`,
+    `<section class="panel"><div class="eyebrow">PACKSIGNAL · CORE ARCHITECTURE</div><h3>${esc(aiStatusLabel())}</h3><p>${esc(copy.connection)}</p><p><b>Architecture:</b> Multimodal artwork review + deterministic comparisons<br><b>Review pipeline:</b> Document text, spreadsheet cells, and located artwork evidence<br><b>Availability:</b> Bounded retries; configured alternate credentials may be tried<br><b>Credential handling:</b> ${esc(copy.credentials)}</p></section>${usageSummary()}<p class="subtle">PackSignal compares supplied product information, company rules, and packaging artwork. Human review remains necessary for uncertain items and release decisions.</p>`,
   );
 }
 function usageSummary() {
-  const u = status.aiUsage;
-  if (!u) return "";
-  return `<div class="panel"><h3>Engine Health & Availability</h3><p><b>State:</b> Operational · Bounded asynchronous processing<br><b>Pacing:</b> ${Math.round(u.minIntervalMs / 1000)}s interval pacing with automated retry management</p>${u.cooldownUntil ? `<div class="notice">Primary key in cooldown until ${date(u.cooldownUntil)}. Automatic pool failover and local deterministic checks remain active.</div>` : ""}${u.remainingAttempts === 0 ? '<div class="notice">Session request allowance reached. Local checks and cached AI results continue serving.</div>' : ""}<small class="subtle">Last dispatch: ${esc(u.lastOutcome)} · High-availability multi-key pool active.</small></div>`;
+  const copy = engineStatusCopy(status);
+  return `<div class="panel"><h3>Engine Health & Availability</h3><p><b>Service check:</b> ${esc(copy.service)}<br><b>Provider pacing:</b> ${esc(copy.pacing)}</p>${copy.cooldownUntil ? `<div class="notice">One or more provider keys are cooling down until ${esc(date(copy.cooldownUntil))}.</div>` : ""}${copy.allowance ? `<div class="notice">${esc(copy.allowance)}</div>` : ""}<small class="subtle">${esc(copy.lastDispatch)} ${esc(copy.failover)}</small></div>`;
 }
 function showUpload(revision = false) {
   uploads = [];
@@ -949,7 +930,7 @@ try {
   const startupData = await Promise.all([
     api("/status", { timeoutMs: 12_000 }),
     api("/market-presets", { timeoutMs: 12_000 }),
-    id ? Promise.resolve(null) : api("/reviews", { timeoutMs: 20_000 }),
+    id ? Promise.resolve([]) : api("/reviews", { timeoutMs: 20_000 }),
   ]);
   [status, marketPresets, reviews] = startupData;
   if (id) {

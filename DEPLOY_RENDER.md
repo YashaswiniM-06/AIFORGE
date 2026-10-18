@@ -26,7 +26,11 @@ PackSignal is a single Node web service: Node serves the UI and API, while a pri
 
 ## Hosting boundaries
 
-The Blueprint requests a paid Render Starter web service with a 1 GB persistent disk because review files and audit records are stored on the server filesystem. A manually created service may use a different compute plan: check the live service's instance type in the Render dashboard. Verify the [Render pricing page](https://render.com/pricing) before changing plans. The disk is mounted at `/var/data`; the application writes there through `PACKPROOF_DATA_DIR`. Render's free web services have ephemeral storage and cannot attach a persistent disk.
+**Live deployment check, 2026-10-18:** the Render dashboard shows this service on the Free plan. Its Disk page says disks are not supported on free compute. The `/var/data` path is therefore not a persistent disk on the current live instance, so review files and records may disappear when Render spins the service down, restarts it, or redeploys it. Do not treat the current hosted workspace as durable storage.
+
+The Blueprint requests a paid Render Starter web service with a 1 GB persistent disk because review files and audit records are stored on the server filesystem. The live service must be moved to a disk-supported plan and the disk attached before hosted review data can be treated as durable. Verify the [Render pricing page](https://render.com/pricing) before changing plans. When attached, the disk should be mounted at `/var/data`, which the application uses through `PACKPROOF_DATA_DIR`.
+
+The live dashboard also says this Free instance spins down with inactivity and may delay requests by 50 seconds or more. Render's [free web service documentation](https://render.com/docs/free#spinning-down-on-idle) describes the idle sleep and startup delay. Application code cannot remove that infrastructure delay.
 
 Render's **“service is starting” loading page** appears before this application can respond. [Render documents](https://render.com/docs/free#spinning-down-on-idle) that Free web services sleep after 15 idle minutes and take about a minute to start again. Application animation, compression, or loading-screen changes cannot remove that infrastructure delay. An always-on paid service removes the free-tier idle sleep; changing the plan is a separate hosting/billing decision.
 

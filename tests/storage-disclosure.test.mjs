@@ -7,6 +7,7 @@ test('local workspaces disclose local storage and separate AI provider processin
     const copy = storageDisclosure(hostname);
     assert.equal(copy.workspaceLabel, 'Local workspace');
     assert.equal(copy.storageLabel, 'Stored on this computer');
+    assert.match(copy.historyNotice, /Saved on this computer/);
     assert.match(copy.uploadNotice, /stored on this computer/i);
     assert.match(copy.uploadNotice, /AI-assisted mode also sends review content to the configured AI provider/);
   }
@@ -15,8 +16,18 @@ test('local workspaces disclose local storage and separate AI provider processin
 test('hosted workspaces disclose server storage without claiming local or private storage', () => {
   const copy = storageDisclosure('packsignal.onrender.com');
   assert.equal(copy.workspaceLabel, 'Hosted workspace');
-  assert.equal(copy.storageLabel, 'Stored on the server running PackSignal');
-  assert.match(copy.uploadNotice, /stored on the server running PackSignal/i);
+  assert.equal(copy.storageLabel, 'Temporary server storage · may reset');
+  assert.match(copy.historyNotice, /Render Free service has no persistent disk/i);
+  assert.match(copy.historyNotice, /may be lost on spin-down, restart, or redeploy/i);
+  assert.match(copy.uploadNotice, /temporary server storage/i);
+  assert.match(copy.uploadNotice, /no persistent disk/i);
   assert.match(copy.uploadNotice, /AI-assisted mode also sends review content to the configured AI provider/);
   assert.doesNotMatch(copy.uploadNotice, /this computer|private/i);
+});
+
+test('other hosted deployments disclose that retention depends on their storage setup', () => {
+  const copy = storageDisclosure('demo.example.com');
+  assert.equal(copy.storageLabel, 'Stored on the server running PackSignal');
+  assert.match(copy.historyNotice, /persistent-storage configuration/i);
+  assert.match(copy.uploadNotice, /retention depends on the server's persistent-storage configuration/i);
 });
