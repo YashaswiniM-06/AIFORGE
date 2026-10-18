@@ -1,78 +1,73 @@
-# PackSignal recording script
+# PackSignal judge demo
 
-Target length: 4 minutes 30 seconds. Record the actual app with legible browser zoom. Prepare reviews before recording so parsing/network waits do not consume the presentation. Show that they came from real inputs. A saved AI result is acceptable if clearly labeled as previously computed; never present a mocked result as live AI.
+Target recording length: **4 minutes 15 seconds** (within the required 3–5 minutes). Keep the demo on one question: can a reviewer trace an artwork finding to its source, verify the evidence, and avoid a false sense of certainty?
 
-## 0:00–0:25 · Problem
+Use the live app with readable browser zoom. Prepare the reviews before recording so parsing waits do not take up demo time. Show real app output; do not present a mockup or a saved AI result as a live request.
 
-“Packaging mistakes begin before the checker runs: references can be draft, quantities can conflict, and AI can mistake unreadable text for missing text. PackSignal gives a reviewer an inspectable chain from source to decision.”
+## Timed story
 
-Open the dashboard. State the selected artwork-review challenge.
+### 0:00–0:20 — The problem
 
-## 0:25–1:30 · Official organizer files
+Open the dashboard.
 
-Open Dancing Fish. Show source PDF and spreadsheet inventory, source status, and an ingredient discrepancy. Open the proof: source cell, expected copy, observed artwork, and highlighted page region.
+> “Before packaging goes to print, a reviewer has to reconcile the artwork with product facts and requirements. PackSignal makes that comparison traceable, and keeps uncertain results visible.”
 
-“The reference is Draft / In Review. We report a discrepancy, not an invented conclusion that the artwork is illegal. The nutrition sheet has multiple columns, and pack size alone does not tell us which serving basis is correct.”
+State that this demo addresses the hackathon’s artwork-review problem.
 
-Show Sources. Leave genuinely unresolved authority/basis decisions unresolved.
+### 0:20–1:05 — Real source uncertainty: Dancing Fish
 
-## 1:30–2:15 · Meaningful AI and uncertainty
+Open the official organizer sample. Show the artwork and content spreadsheet in Sources, then open one concrete discrepancy and its source cell/artwork evidence. Point out that the spreadsheet is marked Draft / In Review and that its nutrition columns do not establish the serving basis.
 
-If a real Gemini review succeeded, show its engine label and an AI-proposed observation/rule with exact supporting evidence. Explain that a proposal is checked for source support and requires review.
+> “The app reports what conflicts with the supplied material. It does not guess which draft fact is authoritative or call this a legal violation.”
 
-A real Gemini run has now completed on Fieldday V1 (gemini-3.8-flash, one outbound attempt). The live-run PDF is included in submission/example-reports. Describe any reopened result as a saved real run.
+Leave unresolved source questions unresolved. Do not click coverage or authority confirmations unless you have personally verified them.
 
-If recording local mode without a new live call, say: “The Gemini integration has completed a real Fieldday review; this particular view uses local extraction and comparisons.” Show the saved Gemini review separately and identify it accurately.
+### 1:05–1:35 — AI with evidence and limits
 
-Show an Unable to verify finding: absence is not claimed merely because extraction missed text.
+Show a genuine Gemini-assisted result with its supporting source quotation. Explain that AI proposes interpretations; exact comparisons use deterministic checks, and unsupported or ambiguous items stay with a reviewer.
 
-## 2:15–3:10 · Controlled case and decision
+Before recording, make a fresh live AI request if quota allows. If you show the previously completed Fieldday run instead, call it a **saved real AI result**, name the model shown in the app, and do not imply it was generated during the recording. If AI is unavailable, show the local result and state that clearly.
 
-Open Fieldday V1. Clearly say it is original fictional material. Show 1000 mL expected and 750 mL observed. Show missing storage wording. After personally inspecting full artwork and extracted content, confirm coverage with a rationale.
+> “A missing extraction is not proof that text is absent. When coverage is uncertain, the app says ‘Unable to verify’ or asks for human review.”
 
-Record “Request a change” on quantity. Explain: “Acknowledging a finding does not make it pass.” Claim approval stays under human review.
+### 1:35–2:35 — Follow one finding: fictional Fieldday V1
 
-Show the review-stage stepper, then open the quantity finding. Say: “The source cell, supplied requirement, and exact artwork region stay connected. The spotlight centers the box for inspection; the artwork itself is unchanged.” Show the millimeter cursor, layer toggles, and SHA-256 recheck. State that the reference is a comparison aid, not an approved replacement.
+Open Fieldday V1 and clearly identify it as an original fictional case. Open the net-quantity finding. Show the supplied 1000 mL value beside the artwork’s 750 mL, along with the exact source and artwork evidence. Record “Request a change” with a short reason.
 
-If time allows, switch to the 3D fold context. Drag the approximate cuboid and select a finding pin. Explain that faces come from reviewer-drawn zones; crease/cut geometry is not automatically inferred. Return to **Artwork map** and say: “This is check coverage, not AI confidence. Green, amber and red regions have a located supported check; uncolored artwork has not been claimed as checked.”
+> “The reviewer decision is recorded separately; acknowledging a finding does not turn it into a pass.”
 
-## 3:10–4:00 · The revision reveal
+Stay in the 2D proof for legibility. Skip the full tab tour, the 3D turntable, and optional market/language/barcode tools in this short recording.
 
-Open Fieldday V2 comparison. Quantity and storage now match, but the customer-care email has disappeared. Show the new failure and its source requirement.
+### 2:35–3:35 — Revision regression
 
-Show the side-by-side artwork version view and synchronized scrolling before the status-change table.
+Open Fieldday V2’s revision comparison. Show that the quantity was corrected but a different required statement disappeared.
 
-“We rerun every supported check. Fixing the reported issue is not enough if the revision introduces another mistake.”
+> “Every supported check runs again on the revision. Fixing the reported mismatch can introduce a new one, so the reviewer sees both the correction and the regression.”
 
-Panel placement confirmation must be performed again for revised artwork; do not carry it forward as proof.
+State that Fieldday is fictional and is used to make the revision behavior repeatable.
 
-## 4:00–4:30 · Close
+### 3:35–4:15 — Close with the trust boundary
 
-Export the PDF or open the JSON audit record. End with:
+Show the evidence-linked report or export action, then close with:
 
-“PackSignal does not issue a universal compliance score. It makes each supported check and each unresolved decision inspectable, so a person can decide what happens before print.”
+> “PackSignal does not issue universal compliance approval. It shows which supplied checks match, which conflict, and which still need a person—so a reviewer can make a better-informed decision before print.”
 
-If time permits, select the fictional Language + barcode / QR signals sample. Show that Spanish and French text are only flagged for translation review, and code detection reports type and approximate location without displaying payload or claiming scan quality. Select an optional market preset only as a starter checklist, and state that it does not provide legal compliance.
+## Rehearsal and recording checklist
 
-For a bilingual exact-copy demonstration, upload a separate source JSON containing a genuinely approved `translation_pairs` map with the artwork and its product specification. Show the paired source phrases beside the artwork evidence. If no reviewer-approved pair is available, demonstrate language detection only; do not describe it as semantic parity.
+- Open the deployed app ahead of time, confirm the health page responds, and prepare the Dancing Fish and Fieldday reviews before recording. Confirm the AI model and quota with one fresh request if you intend to show live AI.
+- Keep a saved, clearly labeled AI result available as a backup. Never describe a saved result as live.
+- Use a fresh review after any engine change. Make sure the visible review matches the current source files and app version.
+- Use a readable browser zoom, enlarge the evidence crop, and hide notifications and unrelated tabs.
+- Rehearse the transition from Dancing Fish to Fieldday so the recording stays under five minutes. Do not spend time on every feature.
+- If Render is slow or unavailable, start the local app with `npm start` and open `http://127.0.0.1:4173`. Run `npm run doctor` beforehand; use the prepared reviews and accurately label any saved AI result.
+- Verify the exported report is legible and consistent with the review. The source package is built with `npm run package`; check it remains below the 50 MB submission limit.
+- The demo recording and portal upload are separate deliverables. Record the actual app flow and upload the video to the hackathon submission yourself.
 
-## Campus: 10 minutes + 5 minutes questions
+## Campus presentation: 10 minutes plus 5 minutes of questions
 
-- 1 minute problem and scope
-- 3 minutes organizer review and proof chain
-- 2 minutes AI interpretation and uncertainty
-- 2 minutes controlled revision case
-- 1 minute architecture and data handling
-- 1 minute limitations, validation evidence and next steps
-
-## Before recording
-
-- Use the final engine version consistently; create fresh reviews after engine changes.
-- Confirm the actual API quota and model; no secret visible in Settings or terminal.
-- Read the sources personally before checking coverage/authority/placement boxes.
-- Keep source decisions honest; the organizer draft remains draft unless authority is established.
-- Open the evidence details and full artwork large enough to read.
-- Check the exported report is legible and matches the shown review.
-- Show the **Verify export seal** action and, if time allows, download the signed JSON and run `node scripts/verify-report.mjs report.json`. Explain that the check proves integrity against the included key; signer identity requires a separately trusted fingerprint.
-- Package source under 50 MB. The ZIP excludes `.env*` credentials and `.packproof/` history.
-- The user records and submits the video; no upload has been performed automatically.
+- 1 minute: problem and chosen challenge statement
+- 3 minutes: Dancing Fish source ambiguity and evidence trail
+- 2 minutes: AI’s role and how uncertainty is handled
+- 2 minutes: Fieldday V1-to-V2 regression
+- 1 minute: architecture and data flow
+- 1 minute: evaluation limits, deployment fallback, and next step
