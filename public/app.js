@@ -48,6 +48,8 @@ let status = {},
   showEvidenceBoxes = true,
   showPanelZones = false,
   timer = null,
+  routeVersion = 0,
+  reviewsRequest = null,
   uploads = [],
   revisionUpload = false;
 let theme = "light";
@@ -133,6 +135,7 @@ function shell(content) {
     `<div class="shell"><aside class="sidebar"><button class="brand" data-action="home" aria-label="PackSignal home"><img src="/icon.svg" alt="">PackSignal</button><div class="workspace-label">REVIEW WORKSPACE</div><nav><button class="nav-item ${view === "dashboard" ? "active" : ""}" data-action="home"><span class="nav-icon">▦</span> Overview</button><button class="nav-item ${view === "review" ? "active" : ""}" data-action="history"><span class="nav-icon">▤</span> Review history</button><button class="nav-item" data-action="guide"><span class="nav-icon">◇</span> How it works</button></nav><div class="sidebar-bottom"><div class="side-note"><strong>Every finding has a source.</strong>Trace the fact, requirement, artwork evidence, and reviewer decision.</div><button class="connection" data-action="settings" title="Open AI status and settings"><span class="dot ${status.aiConnection === "verified" ? "" : "off"}"></span><span class="connection-label">${esc(aiStatusLabel())}</span></button><div class="avatar"><b>AIForge workspace</b>Private · stored on this computer</div></div></aside><main class="main"><header class="topbar"><div class="breadcrumb">Workspace <span>/</span><b>${view === "review" ? "Artwork review" : "Overview"}</b></div><div class="actions"><span class="badge">ESKO AIFORGE 2026</span><button class="ghost theme-toggle" data-action="theme" aria-label="${theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}" aria-pressed="${theme === "dark"}">${theme === "dark" ? "☀" : "☾"}</button><button class="ghost" data-action="settings" aria-label="Settings">⚙</button></div></header><div class="content">${content}</div></main></div>`;
 }
 function dashboard() {
+  routeVersion++;
   view = "dashboard";
   current = null;
   clearTimeout(timer);
@@ -140,6 +143,52 @@ function dashboard() {
   shell(
     `<section class="hero"><div><div class="eyebrow">THE PACKAGING COMPILER</div><h1>Ready for print starts<br>with proof.</h1><p>Turn product information, review rules, and artwork into an evidence-backed review. See what matches, what differs, and what needs your judgment.</p><div class="actions"><button class="primary" data-action="upload">+ New artwork review</button><button class="secondary" data-action="sample" data-sample="organizer">Explore organizer sample ↗</button><button class="textbutton tour-start" data-action="tour">First time? Start guided tour →</button></div></div><div class="hero-art" aria-hidden="true"><div class="package">proof.<small>EVERY DETAIL COUNTS</small></div><div class="proof-tag"><span>✓</span> Evidence connected</div></div></section>${analyticsView()}<div class="section-head"><div><h2>Start with the evidence</h2><p>Two complementary cases. Real source ambiguity and a controlled revision.</p></div></div><section class="cards"><article class="sample-card"><div class="tag">01 / OFFICIAL CHALLENGE FILES</div><h3>Dancing Fish · Berry Crunch</h3><p>A carton dieline and draft content sheet. Inspect ingredient discrepancies, nutrition ambiguity, and claims that need supporting evidence.</p><div class="file-chips"><span class="file-chip">1 artwork PDF</span><span class="file-chip">1 content spreadsheet</span><span class="file-chip">United States</span></div><button class="secondary" data-action="sample" data-sample="organizer">Review organizer files <span>→</span></button></article><article class="sample-card"><div class="tag">02 / CONTROLLED FICTIONAL CASE</div><h3>Fieldday · Original Oat Drink</h3><p>Find a quantity mismatch and missing storage copy. Then check a corrected revision that introduces a different omission.</p><div class="file-chips"><span class="file-chip">12 company checks</span><span class="file-chip">V1 → V2</span><span class="file-chip">Synthetic</span></div><button class="secondary" data-action="sample" data-sample="fieldday">Explore the revision story <span>→</span></button></article></section><section class="workflow" aria-label="Review process"><div><span class="step-num">01</span><b>Read the source</b><p>Keep facts attached to documents.</p></div><div><span class="step-num">02</span><b>Resolve uncertainty</b><p>Confirm drafts and conflicting values.</p></div><div><span class="step-num">03</span><b>Inspect the proof</b><p>Compare rules with artwork evidence.</p></div><div><span class="step-num">04</span><b>Review the revision</b><p>Recheck fixes and catch regressions.</p></div></section><section id="history"><div class="section-head"><div><h2>Recent reviews</h2><p>Saved locally with source files and decision history.</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}</section><p class="footer-note">Scope: supplied sources and supported checks. PackSignal supports a human release decision; it does not certify legal compliance or authorize printing.</p>`,
   );
+}
+function rememberReviewSummary(review) {
+  const summary = {
+    id: review.id,
+    name: review.name,
+    createdAt: review.createdAt,
+    finishedAt: review.finishedAt,
+    status: review.status,
+    counts: review.counts,
+    engine: review.engine,
+    sample: review.sample,
+    parentId: review.parentId,
+  };
+  reviews = [summary, ...reviews.filter((item) => item.id !== review.id)]
+    .sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
+function renderDashboardReviewData() {
+  if (view !== "dashboard") return;
+  const analytics = $(".analytics");
+  if (analytics) analytics.outerHTML = analyticsView();
+  const historySection = $("#history");
+  if (historySection)
+    historySection.innerHTML = `<div class="section-head"><div><h2>Recent reviews</h2><p>Saved locally with source files and decision history.</p></div><button class="textbutton subtle" data-action="refresh">Refresh</button></div>${historyTable()}`;
+}
+function refreshReviews() {
+  if (!reviewsRequest) {
+    const request = api("/reviews").then((items) => {
+      reviews = items;
+      return items;
+    }).finally(() => {
+      if (reviewsRequest === request) reviewsRequest = null;
+    });
+    reviewsRequest = request;
+  }
+  return reviewsRequest;
+}
+function showDashboard({ scrollToHistory = false } = {}) {
+  if (view !== "dashboard") {
+    dashboard();
+    refreshReviews().then(renderDashboardReviewData).catch(() => {
+      toast("Workspace opened, but recent reviews could not be refreshed.");
+    });
+  }
+  if (scrollToHistory && view === "dashboard")
+    $("#history")?.scrollIntoView({ behavior: "smooth" });
+  else window.scrollTo({ top: 0, behavior: "smooth" });
 }
 function sourceLink(url) {
   try {
@@ -269,11 +318,13 @@ function renderReviewLoadError(id, error) {
     `<main class="boot" role="alert"><div class="eyebrow">REVIEW UNAVAILABLE</div><h1>Couldn’t open this review.</h1><p>${esc(message)}</p><p>Try again, or open the workspace to see which reviews are currently available on this server.</p><div class="actions"><button class="primary" data-action="retry-review" data-id="${esc(id)}">Retry</button><button class="secondary" data-action="home">Open workspace</button></div></main>`;
 }
 async function openReview(id, initialReview = null) {
+  const requestVersion = ++routeVersion;
   clearTimeout(timer);
   view = "review";
   history.replaceState(null, "", "#review/" + id);
   try {
     const nextReview = initialReview || await api("/reviews/" + id, { timeoutMs: 15_000 });
+    if (requestVersion !== routeVersion) return;
     const isNew = current?.id !== id;
     if (isNew) {
       selectedFindingId = nextReview.findings?.find((item) => item.status === "issue" || item.status === "review")?.id || nextReview.findings?.[0]?.id || null;
@@ -293,15 +344,19 @@ async function openReview(id, initialReview = null) {
       (current.updatedAt !== nextReview.updatedAt);
 
     current = nextReview;
+    rememberReviewSummary(nextReview);
     if (hasChanged) {
-      previousReview = current.parentId
+      const prior = current.parentId
         ? await api("/reviews/" + current.parentId)
         : null;
+      if (requestVersion !== routeVersion) return;
+      previousReview = prior;
       renderReview();
     }
     if (["queued", "processing"].includes(current.status) || ["pending", "running"].includes(current.aiStatus))
       timer = setTimeout(() => openReview(id), 1300);
   } catch (e) {
+    if (requestVersion !== routeVersion) return;
     if (current?.id !== id) renderReviewLoadError(id, e);
     else toast(e.message);
   }
@@ -662,18 +717,13 @@ document.addEventListener("click", async (event) => {
       );
     }
     if (action === "tour") await guidedTour();
-    if (action === "home") {
-      reviews = await api("/reviews");
-      dashboard();
-    }
+    if (action === "home") showDashboard();
     if (action === "history") {
-      reviews = await api("/reviews");
-      dashboard();
-      $("#history").scrollIntoView({ behavior: "smooth" });
+      showDashboard({ scrollToHistory: true });
     }
     if (action === "refresh") {
-      reviews = await api("/reviews");
-      dashboard();
+      await refreshReviews();
+      renderDashboardReviewData();
     }
     if (action === "close") $("#dialog").close();
     if (action === "settings") await settings();
