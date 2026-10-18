@@ -262,12 +262,18 @@ function historyTable() {
     ? `<div class="table-wrap"><table><thead><tr><th>Review</th><th>Status</th><th>Created</th><th></th></tr></thead><tbody>${reviews.map((r) => `<tr><td><strong>${esc(r.name)}</strong><small>${esc(r.engine || "Processing documents")}</small></td><td>${r.status === "ready" ? `${r.counts.issue} ${r.counts.issue === 1 ? "issue" : "issues"} · ${r.counts.review} to review` : `<span class="pill unable">${esc(r.status)}</span>`}</td><td class="nowrap">${date(r.createdAt)}</td><td><button class="textbutton" data-action="open" data-id="${r.id}">Open →</button></td></tr>`).join("")}</tbody></table></div>`
     : `<div class="table-wrap empty">Your first review starts with the files above, or your own packaging artwork.</div>`;
 }
-async function openReview(id) {
+function renderReviewLoadError(id, error) {
+  clearTimeout(timer);
+  const message = error?.message || "The server did not return this review.";
+  $("#app").innerHTML =
+    `<main class="boot" role="alert"><div class="eyebrow">REVIEW UNAVAILABLE</div><h1>Couldn’t open this review.</h1><p>${esc(message)}</p><p>Try again, or open the workspace to see which reviews are currently available on this server.</p><div class="actions"><button class="primary" data-action="retry-review" data-id="${esc(id)}">Retry</button><button class="secondary" data-action="home">Open workspace</button></div></main>`;
+}
+async function openReview(id, initialReview = null) {
   clearTimeout(timer);
   view = "review";
   history.replaceState(null, "", "#review/" + id);
   try {
-    const nextReview = await api("/reviews/" + id);
+    const nextReview = initialReview || await api("/reviews/" + id, { timeoutMs: 15_000 });
     const isNew = current?.id !== id;
     if (isNew) {
       selectedFindingId = nextReview.findings?.find((item) => item.status === "issue" || item.status === "review")?.id || nextReview.findings?.[0]?.id || null;
@@ -296,7 +302,8 @@ async function openReview(id) {
     if (["queued", "processing"].includes(current.status) || ["pending", "running"].includes(current.aiStatus))
       timer = setTimeout(() => openReview(id), 1300);
   } catch (e) {
-    toast(e.message);
+    if (current?.id !== id) renderReviewLoadError(id, e);
+    else toast(e.message);
   }
 }
 function renderReview() {
@@ -678,6 +685,7 @@ document.addEventListener("click", async (event) => {
       filter = "all";
       await openReview(b.dataset.id);
     }
+    if (action === "retry-review") await openReview(b.dataset.id);
     if (action === "tab") {
       tab = b.dataset.tab;
       renderReview();
@@ -879,16 +887,30 @@ document.addEventListener("submit", async (event) => {
   }
 });
 try {
-  [status, marketPresets, reviews] = await Promise.all([
+  const id = location.hash.match(/^#review\/([a-f0-9-]{36})$/)?.[1];
+  const initialReview = id
+    ? api("/reviews/" + id, { timeoutMs: 15_000 }).then(
+        (review) => ({ review }),
+        (error) => ({ error }),
+      )
+    : null;
+  const startupData = await Promise.all([
     api("/status", { timeoutMs: 12_000 }),
     api("/market-presets", { timeoutMs: 12_000 }),
-    api("/reviews", { timeoutMs: 20_000 }),
+    id ? Promise.resolve(null) : api("/reviews", { timeoutMs: 20_000 }),
   ]);
-  const id = location.hash.match(/^#review\/([a-f0-9-]{36})$/)?.[1];
-  if (id) await openReview(id);
-  else dashboard();
+  [status, marketPresets, reviews] = startupData;
+  if (id) {
+    const result = await initialReview;
+    if (result.error) renderReviewLoadError(id, result.error);
+    else await openReview(id, result.review);
+  } else dashboard();
 } catch (e) {
-  $("#app").innerHTML =
-    `<main class="boot" role="alert"><div class="eyebrow">LOCAL WORKSPACE</div><h1>PackSignal could not finish loading.</h1><p>${esc(e.message)}</p><p>If you see <code>EADDRINUSE</code> after starting the app, an existing PackSignal server is already using port 4173; keep it running and refresh this page.</p><button class="primary" id="retry-boot" type="button">Retry connection</button></main>`;
-  $("#retry-boot")?.addEventListener("click", () => location.reload());
+  const id = location.hash.match(/^#review\/([a-f0-9-]{36})$/)?.[1];
+  if (id) renderReviewLoadError(id, e);
+  else {
+    $("#app").innerHTML =
+      `<main class="boot" role="alert"><div class="eyebrow">LOCAL WORKSPACE</div><h1>PackSignal could not finish loading.</h1><p>${esc(e.message)}</p><p>If you see <code>EADDRINUSE</code> after starting the app, an existing PackSignal server is already using port 4173; keep it running and refresh this page.</p><button class="primary" id="retry-boot" type="button">Retry connection</button></main>`;
+    $("#retry-boot")?.addEventListener("click", () => location.reload());
+  }
 }
