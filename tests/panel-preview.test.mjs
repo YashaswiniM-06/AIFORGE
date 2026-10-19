@@ -75,6 +75,24 @@ test('ambiguous and invalid capture faces never become geometry suggestions',()=
   assert.equal(sourcePreviewZones(r).front.page,1);
 });
 
+test('unlabelled video stills offer explicit face mapping without silently confirming geometry',()=>{
+  const r=review();delete r.sample;
+  r.options.captureFaces=[
+    {page:1,face:'unassigned',box:[0,0,1,1]},
+    {page:2,face:'unassigned',box:[0,0,1,1]},
+  ];
+  const html=panelZoneMapper(r);
+  assert.match(html,/Assign video frames to package faces/);
+  assert.match(html,/Unlabelled video frames do not reveal their orientation automatically/);
+  assert.match(html,/data-capture-map-face="1"/);
+  assert.match(html,/data-capture-map-page="2"/);
+  assert.match(html,/data-package-confirm[^>]*disabled/);
+  assert.doesNotMatch(html,/data-package-confirm[^>]*checked/);
+  const preview=workbenchArtwork(r,null,{mode:'3d'});
+  assert.match(preview,/2 video frames · assign faces/);
+  assert.match(preview,/Video stills are not orientation-labeled/);
+});
+
 test('camera-only face mapper permits package selection and confirmation without a dieline',()=>{
   const r=review();delete r.sample;
   r.options.captureFaces=[{page:1,face:'front',box:[0,0,1,.96]}];

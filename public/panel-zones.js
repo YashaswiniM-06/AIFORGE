@@ -87,11 +87,16 @@ function photoMapper(review, zones) {
   if (review.sample) return '';
   const type = review.options?.packageType || 'carton';
   const suggestions = captureFaceSuggestions(review), hasFront = Boolean(zones.front?.box);
+  const pages = artwork(review)?.pages || [];
+  const unassigned = (review.options?.captureFaces || [])
+    .filter(item => item?.face === 'unassigned' && pages.some(page => page.number === item.page))
+    .map(item => ({ ...item, artworkPage: pages.find(page => page.number === item.page) }));
   return `<section class="package-mapping panel" data-package-mapping>
     <div class="eyebrow">PHOTO & ARTWORK PACKAGE PREVIEW</div><h3>Choose a package and confirm its faces</h3>
     <p class="subtle">Map each visible face from its own artwork page. A square-on photo works best: crop away background and neighboring faces. The 3D shape uses these textures with illustrative proportions.</p>
     <div class="package-mapping-controls"><label>Package type<select name="packageType" data-package-type>${packageTypes.map(item => `<option value="${item.id}" ${item.id === type ? 'selected' : ''}>${item.label}</option>`).join('')}</select></label></div>
     ${Object.keys(suggestions).length ? `<p class="subtle">${Object.keys(suggestions).length} uniquely labelled face photo(s) are available as starting crops.</p><button type="button" class="secondary" data-capture-apply>Use labelled photos as starting crops</button>` : ''}
+    ${unassigned.length ? `<section class="capture-frame-mapper"><b>Assign video frames to package faces</b><p class="subtle">Inspect each still, choose the face it shows, then use it as a starting crop. Unlabelled video frames do not reveal their orientation automatically; adjust each crop to the flat artwork area.</p><div class="capture-frame-grid">${unassigned.map(item => `<article class="capture-frame-card"><img src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(item.artworkPage.image)}" alt="Unassigned camera frame, artwork page ${item.page}"><small>Video still · page ${item.page}</small><label>Visible face<select data-capture-map-face="${item.page}"><option value="">Choose face…</option>${packageType(type).faces.map(face => `<option value="${face}">${escape(packageFaceLabel(type, face))}</option>`).join('')}</select></label><button type="button" class="secondary" data-capture-map-page="${item.page}">Use this frame as a crop</button></article>`).join('')}</div></section>` : ''}
     <label class="checkrow package-confirm"><input type="checkbox" name="packageMappingConfirmed" data-package-confirm ${review.options?.packageMappingConfirmed && hasFront ? 'checked' : ''} ${hasFront ? '' : 'disabled'}><span>I inspected the visible artwork crops and confirm this package type and face assignment.<br><small class="subtle" data-package-confirm-hint>${hasFront ? 'The next 3D preview will use these reviewer-confirmed face crops.' : 'Map at least the front face on the artwork before confirming.'}</small></span></label>
     <p class="notice" data-package-mapping-status>${review.options?.staleConfirmations?.packageMappingConfirmed ? 'The artwork, package type or face map changed. Please inspect and confirm again.' : ''}</p>
   </section>`;
@@ -311,6 +316,16 @@ export function mountPanelZoneMapper(container, review) {
       }
       persist(); invalidatePackageConfirmation('Labelled photos copied. Crop each visible flat face before confirming.'); refreshPackageType();
     });
+    mapping.querySelectorAll('[data-capture-map-page]').forEach(button => button.addEventListener('click', () => {
+      const page = Number(button.dataset.captureMapPage);
+      const face = mapping.querySelector(`[data-capture-map-face="${page}"]`)?.value;
+      if (!face || !packageType(selectedType()).faces.includes(face)) {
+        status.textContent = 'Choose the visible face for this still before mapping it.';
+        return;
+      }
+      zones[face] = { page, box: [0, 0, 1, 1] };
+      dirtyFaces.add(face); persist(); invalidatePackageConfirmation('Frame assigned as a starting crop. Adjust it to the visible flat face, then confirm.'); redraw();
+    }));
     mapping.querySelector('[data-dieline-apply]')?.addEventListener('click', () => {
       const suggestion = suggestDielineMapping(dieline, selectedType());
       if (!Object.keys(suggestion.zones).length) return;

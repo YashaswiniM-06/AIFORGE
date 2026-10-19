@@ -26,8 +26,9 @@ test('artwork-only image review remains inspectable and explicitly requests refe
   const missing=result.findings.find(item=>item.key==='missing-reference');
   assert.equal(missing.status,'unable');
   assert.equal(missing.method,'review_input_gap');
-  assert.match(missing.explanation,/2D inspection and face mapping/);
-  assert.match(missing.explanation,/Create a review with these images and an approved product specification or checklist/);
+  assert.match(missing.title,/Add a product spec/);
+  assert.match(missing.explanation,/ready for visual inspection/);
+  assert.match(missing.explanation,/Add an approved product specification or checklist/);
   const unread=result.findings.find(item=>item.key==='artwork-text-unavailable');
   assert.equal(unread.status,'unable');
   assert.deepEqual(unread.evidence.map(item=>item.page),[1,2]);
@@ -115,6 +116,13 @@ test('keeps missing or conflicting product GTINs in human review and does not im
   const findings=signalFindings(review);
   assert.equal(findings.find(item=>item.method==='gtin_record_check').status,'review');
   assert.equal(findings.find(item=>item.method==='barcode_human_review').status,'review');
+});
+
+test('does not create a barcode warning when no symbol is decoded and no barcode requirement was supplied',()=>{
+  const findings=signalFindings({documents:[
+    {id:'art',name:'photo-capture.pdf',role:'artwork',text:'Whole milk · 1 L',pages:[{number:1,codes:[]}]},
+  ]});
+  assert.equal(findings.some(item=>item.key==='code:unverified'),false);
 });
 
 test('converts kilograms to grams for package quantities', () => {
