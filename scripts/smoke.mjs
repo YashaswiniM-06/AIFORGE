@@ -99,7 +99,7 @@ try {
   const clientScript = await (await fetch(`${base}/app.js`)).text();
   assert.doesNotMatch(clientScript, /id="api-key|settings-form|clear-key/,
     'The browser must not contain key-entry or key-clear controls.');
-  assert.match(clientScript, /AI assisted · recommended/,
+  assert.match(clientScript, /AI-assisted review \(recommended\)/,
     'AI-assisted review should be the default mode.');
   for (const asset of ['/app.js', '/artwork-ui.js', '/cad-carton.js', '/camera-intake.js', '/dieline-layout.js', '/source-impact.js', '/walkthrough.js', '/styles.css']) {
     const response = await fetch(`${base}${asset}`);

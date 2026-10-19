@@ -565,6 +565,27 @@ td small {
   border-color: #345e38;
   color: #1d3f2b;
 }
+.tabs { overflow: visible; align-items: end; }
+.tab-more { position: relative; margin-left: auto; }
+.tab-more > summary { list-style: none; cursor: pointer; }
+.tab-more > summary::-webkit-details-marker { display: none; }
+.tab-more-menu { position: absolute; z-index: 20; right: 0; top: calc(100% + 1px); display: grid; min-width: 160px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--white); box-shadow: 0 10px 28px #10251c24; }
+.tab-more-menu .tab { padding: 10px 12px; border: 0; border-radius: 5px; text-align: left; }
+.tab-more-menu .tab.active { background: #edf2e8; }
+.review-workflow { margin: 12px 0 0; }
+.review-workflow > summary, .dashboard-extras > summary, .advanced-options > summary { cursor: pointer; color: var(--muted); font-size: 12px; font-weight: 650; }
+.review-workflow > summary { display: flex; gap: 8px; align-items: center; padding: 8px 2px; }
+.review-workflow > summary span { font-weight: 450; }
+.review-workflow[open] .review-pipeline { margin-top: 8px; }
+.dashboard-extras, .advanced-options { border: 1px solid var(--line); border-radius: 9px; background: var(--white); }
+.dashboard-extras { margin: 20px 0; }
+.dashboard-extras > summary, .advanced-options > summary { padding: 13px 16px; list-style-position: inside; }
+.dashboard-extras[open] > summary, .advanced-options[open] > summary { border-bottom: 1px solid var(--line); }
+.dashboard-extras .analytics { padding: 14px; margin: 0; }
+.dashboard-extras .workflow { margin: 0 14px 14px; }
+.advanced-options { margin: 14px 0; }
+.advanced-options .advanced-content { display: grid; gap: 12px; padding: 0 14px 14px; }
+.advanced-content > .field { margin: 0; }
 .review-body {
   padding-top: 20px;
 }
@@ -1647,6 +1668,9 @@ details > summary {
 [data-theme="dark"] .tab.active {
   color: #ddf2b8;
   border-color: #b0d77a;
+}
+[data-theme="dark"] .tab-more-menu .tab.active {
+  background: #203d30;
 }
 [data-theme="dark"] .filter {
   color: #bbceae;
