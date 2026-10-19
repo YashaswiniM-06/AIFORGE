@@ -46,6 +46,40 @@ test('long line candidates from unlabeled raster dielines show unassigned region
   assert.match(result.note, /unlabelled regions were found/);
 });
 
+test('structured DXF layers preserve line semantics and uniquely labelled closed panel geometry', () => {
+  const dxf = {
+    vectorGeometry: { format: 'DXF', lineCount: 8, lineKinds: { cut: 4, crease: 1, glue: 0, unclassified: 3 } },
+    panelLabels: [],
+    vectorRegions: [
+      { page: 1, box: [.1, .1, .45, .9], face: 'front', sourceLabel: 'FRONT PANEL', area: .28, layer: 'PANEL' },
+      { page: 1, box: [.55, .1, .9, .9], face: 'back', sourceLabel: 'BACK PANEL', area: .28, layer: 'PANEL' },
+      { page: 1, box: [0, 0, 1, 1], face: 'front', sourceLabel: 'FRONT PANEL', area: 1, layer: 'CUT' },
+    ],
+  };
+  const result = suggestDielineMapping(dxf, 'carton');
+  assert.deepEqual(result.zones.front.box, [.1, .1, .45, .9]);
+  assert.deepEqual(result.zones.back.box, [.55, .1, .9, .9]);
+  assert.equal(result.zones.left, undefined);
+  assert.equal(result.candidateRegions.length, 2, 'A large closed outer boundary is not presented as an artwork face candidate.');
+  assert.match(result.note, /explicit layer names classify line purpose/);
+  assert.match(result.note, /package-shaped 3D preview remains illustrative/);
+});
+
+test('DXF dieline mapper explains layer-backed cues and includes a line legend', () => {
+  const review = {
+    id: 'cad-review', options: { packageType: 'carton', panelZones: {} }, findings: [],
+    documents: [
+      { role: 'artwork', pages: [{ number: 1, width: 1200, height: 800, image: 'art.png' }] },
+      { ...dieline, name: 'box.dxf', vectorGeometry: { format: 'DXF', lineCount: 5, lineKinds: { cut: 4, crease: 1 } }, vectorLines: [], vectorRegions: [] },
+    ],
+  };
+  const html = panelZoneMapper(review);
+  assert.match(html, /ASCII DXF line and lightweight-polyline geometry is preserved/);
+  assert.match(html, /Cut layer/);
+  assert.match(html, /Crease \/ score layer/);
+  assert.doesNotMatch(html, /Line style alone cannot distinguish cut from crease/);
+});
+
 test('package types expose the expected reviewer-mappable faces and terminology', () => {
   assert.deepEqual(packageType('carton').faces, ['front', 'back', 'left', 'right', 'top', 'bottom']);
   assert.deepEqual(packageType('pouch').faces, ['front', 'back', 'left', 'right', 'bottom']);
@@ -68,7 +102,7 @@ test('dieline mapper requires an artwork front crop before reviewer confirmation
   assert.match(html, /Copy face regions to artwork map/);
   assert.match(html, /name="packageType"/);
   assert.match(html, /data-package-confirm[^>]*disabled/);
-  assert.match(html, /Line style alone cannot distinguish cut from crease/);
+  assert.match(html, /visual cues cannot distinguish cut from crease/);
 });
 
 test('unlabeled structural edges render as candidates without assigning face names', () => {

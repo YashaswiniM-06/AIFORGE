@@ -45,11 +45,16 @@ function dielinePagePreview(review, dieline, type, pageNumber) {
       : `left:${fold.position*100}%;top:${extent[0]*100}%;height:${(extent[1]-extent[0])*100}%;bottom:auto`;
     return `<div class="dieline-fold ${fold.axis} ${fold.source ? 'candidate-edge' : ''}" style="${position}" aria-hidden="true"></div>`;
   }).join('');
-  const candidateRegions = Object.keys(suggestion.zones).length ? [] : suggestion.candidateRegions.filter(region => region.page === page.number).map((region, index) => {
+  const candidateRegions = suggestion.candidateRegions.filter(region => region.page === page.number &&
+    !Object.values(suggestion.zones).some(zone => zone.page === region.page && zone.box.every((value, index) => Math.abs(value - region.box[index]) < 0.0001))
+  ).map((region, index) => {
     const [x0, y0, x1, y1] = region.box;
     return `<div class="dieline-suggestion-zone unlabelled" style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>${escape(region.label || `Unlabelled region ${index+1}`)}</span></div>`;
   }).join('');
-  return { suggestion, html: `<div class="dieline-suggestion-stage"><img data-dieline-image src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="Uploaded dieline page ${page.number} with unconfirmed face and line suggestions"><div data-dieline-overlay>${overlays}${candidateRegions}${folds}</div></div>` };
+  const vectorLegend = dieline.vectorGeometry?.format === 'DXF'
+    ? `<div class="dxf-geometry-legend" aria-label="DXF line layer legend"><span><i class="cut"></i>Cut layer</span><span><i class="crease"></i>Crease / score layer</span><span><i class="glue"></i>Glue layer</span><span><i class="perforation"></i>Perforation layer</span><span><i class="unclassified"></i>Unclassified layer</span><small>Colors come from explicit DXF layer or linetype names.</small></div>`
+    : '';
+  return { suggestion, html: `<div class="dieline-suggestion-stage"><img data-dieline-image src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="Uploaded dieline page ${page.number} with unconfirmed face and line suggestions"><div data-dieline-overlay>${overlays}${candidateRegions}${folds}</div></div>${vectorLegend}` };
 }
 
 function dielineMapper(review, zones) {
@@ -60,10 +65,13 @@ function dielineMapper(review, zones) {
   const { suggestion, html: preview } = dielinePagePreview(review, dieline, type, page.number);
   const faceSummary = suggestion.faces.map(item => `<span class="dieline-face-chip ${item.suggested ? 'suggested' : ''}">${item.suggested ? '✓' : '○'} ${escape(item.label)}</span>`).join('');
   const hasFront = Boolean(zones.front?.box);
+  const mappingDescription = dieline.vectorGeometry?.format === 'DXF'
+    ? 'ASCII DXF line and lightweight-polyline geometry is preserved in the preview. Explicit layer or linetype names identify cut, crease, glue, perforation, or unclassified strokes; labeled closed panels can suggest face crops. Confirm the original geometry and artwork mapping. The package-shaped 3D view remains illustrative.'
+    : 'Positioned labels suggest face identities. For image-only or unlabeled dielines, long straight strokes outline candidate regions. Those visual cues cannot distinguish cut from crease. Inspect the original and map the matching artwork crops; the 3D preview stays hidden until you confirm.';
   return `<section class="package-mapping panel" data-package-mapping>
     <div class="eyebrow">DIELINE-AWARE PACKAGE PREVIEW</div>
     <h3>Suggest faces, then confirm the mapping</h3>
-    <p class="subtle">Positioned labels suggest face identities. For image-only or unlabeled dielines, long straight strokes outline candidate regions. Line style alone cannot distinguish cut from crease. Inspect the original and map the matching artwork crops; the 3D preview stays hidden until you confirm.</p>
+    <p class="subtle">${escape(mappingDescription)}</p>
     <div class="package-mapping-controls">
       <label>Package type<select name="packageType" data-package-type>${packageTypes.map(item => `<option value="${item.id}" ${item.id === type ? 'selected' : ''}>${item.label}</option>`).join('')}</select></label>
       ${dieline.pages.length > 1 ? `<label>Dieline page<select data-dieline-page>${dieline.pages.map(item => `<option value="${item.number}" ${item.number === page.number ? 'selected' : ''}>Page ${item.number}</option>`).join('')}</select></label>` : ''}

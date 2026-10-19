@@ -350,6 +350,7 @@
 .next-question{color:#243d31}
 .dieline-fold.horizontal{left:0;right:0;bottom:auto;border-left:0;border-top:2px dashed #dd5b47}
 .dieline-fold.candidate-edge{border-color:#5684a6;border-style:dotted;opacity:.95}.dieline-fold.horizontal.candidate-edge{border-left:0;border-top:2px dotted #5684a6}.dieline-suggestion-zone.unlabelled{border-color:#5684a6;border-style:dotted;background:#5684a620}.dieline-suggestion-zone.unlabelled span{background:#233d50e8}
+.dxf-geometry-legend{display:flex;flex-wrap:wrap;gap:6px 12px;padding:8px 10px;border:1px solid var(--line);border-top:0;border-radius:0 0 8px 8px;background:#fff;color:#526257;font-size:9px}.dxf-geometry-legend span{display:flex;align-items:center;gap:5px}.dxf-geometry-legend i{display:inline-block;width:15px;border-top:3px solid #313d36}.dxf-geometry-legend i.cut{border-color:#d94f3d}.dxf-geometry-legend i.crease{border-color:#367aa1;border-top-style:dashed}.dxf-geometry-legend i.glue{border-color:#c28b20;border-top-style:dotted}.dxf-geometry-legend i.perforation{border-color:#8b62a5;border-top-style:dashed}.dxf-geometry-legend small{flex-basis:100%;color:var(--muted)}
 @media(max-width:640px){.zone-face-preview{gap:14px;padding:14px}.zone-preview-copy strong{font-size:14px}}
 
 /* Reviewer-confirmed previews for additional package forms. */

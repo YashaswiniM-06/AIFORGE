@@ -120,10 +120,11 @@ async function writeInputs(r,files){
   let total=0;const written=[];
   for(const f of files){
     const name=basename(String(f.name||'')).replace(/[\x00-\x1f]/g,'').slice(0,160),ext=extname(name).toLowerCase();
-    if(!['.pdf','.png','.jpg','.jpeg','.webp','.xlsx','.docx','.csv','.json','.txt','.md'].includes(ext))throw fail('Unsupported file type: '+name);
+    if(!['.pdf','.png','.jpg','.jpeg','.webp','.xlsx','.docx','.csv','.json','.txt','.md','.dxf'].includes(ext))throw fail('Unsupported file type: '+name);
     if(!['artwork','dieline','spec','rules','claims'].includes(f.role))throw fail('Invalid document role.');
     if(f.role==='artwork'&&!['.pdf','.png','.jpg','.jpeg','.webp'].includes(ext))throw fail('Artwork must be a PDF or image.');
-    if(f.role==='dieline'&&!['.pdf','.png','.jpg','.jpeg','.webp'].includes(ext))throw fail('A dieline must be a PDF or image.');
+    if(f.role==='dieline'&&!['.pdf','.png','.jpg','.jpeg','.webp','.dxf'].includes(ext))throw fail('A dieline must be a PDF, image, or ASCII DXF file.');
+    if(ext==='.dxf'&&f.role!=='dieline')throw fail('DXF files are supported only as a dieline / structural reference.');
     if(typeof f.base64!=='string'||!f.base64.length||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.base64))throw fail('Invalid encoded file.');
     const bytes=Buffer.from(f.base64,'base64');total+=bytes.length;
     if(bytes.length>15_000_000||total>30_000_000)throw fail('Limit: 15 MB per file, 30 MB per review.',413);

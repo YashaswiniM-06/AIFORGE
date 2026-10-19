@@ -101,3 +101,9 @@ The current local lookup recognizes register entries plus a bounded list of comm
 ## Images and scans
 
 Local mode renders them but does not pretend to perform OCR. AI mode sends artwork first in groups of three, up to 12 rendered pages total, and reports omitted or untranscribed pages. AI transcription always requires visual confirmation, and it cannot support a definite absence claim by itself.
+
+## Dielines
+
+An optional dieline can be supplied as PDF, PNG, JPEG, WebP, or ASCII DXF. DXF extraction preserves `LINE` and `LWPOLYLINE` coordinates and reads `TEXT` / `MTEXT` labels. Explicit layer or linetype names containing `cut`, `crease`, `fold`, `score`, `glue`, or `perforation` color the corresponding strokes; color alone is never used to decide what a line means. A uniquely labelled closed polyline can suggest an artwork face crop. Review every suggestion and confirm the artwork mapping before the package preview appears.
+
+The DXF parser does not expand blocks or interpret splines, arcs, hatches, dimensions, paper space, or all CAD extensions. Unsupported entities are called out for review. Export an ASCII DXF with linework and readable face labels for best results. PDF and raster dielines can provide positioned text and visual straight-line candidates only; those formats do not reliably encode cut-versus-crease intent. The package-shaped 3D view uses the confirmed artwork crops but remains an illustrative carton, pouch, bottle-label, or sleeve context, not a CAD solid or fold simulation.

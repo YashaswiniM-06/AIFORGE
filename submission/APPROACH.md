@@ -39,7 +39,7 @@ The product centers on the artwork-checker theme. Its truth sheet resolves refer
 - **Actionable correction handoff:** the designer ticket carries source, observed text and artwork location, while avoiding invented point sizes or layer names.
 - **Visual corroboration:** rendered-page transcription can be compared with native PDF text. A mismatch prompts crop inspection because OCR can miss text; it does not prove invisibility.
 - **Evidence-bound decisions:** when source, artwork, rule, or mapped-panel dependencies change, prior confirmations are invalidated instead of silently reused.
-- **Dieline-aware preview setup:** a separate structural PDF or image can provide positioned face-label hints and rendered long-line candidates. The reviewer maps artwork crops and explicitly confirms before a carton, pouch, bottle-label, or sleeve context view uses them; the established Dancing Fish and Fieldday artwork previews remain unchanged.
+- **Dieline-aware preview setup:** PDF/image inputs can provide positioned face-label hints and rendered long-line candidates. ASCII DXF also preserves supported line and lightweight-polyline coordinates, explicit cut/crease/glue layer names, and uniquely labelled closed panel regions. The reviewer maps artwork crops and confirms them before a carton, pouch, bottle-label, or sleeve context view appears. These package forms remain illustrative, not CAD solids; the established Dancing Fish and Fieldday artwork previews remain unchanged.
 
 ## Actual samples
 

@@ -10,6 +10,7 @@ const root = fileURLToPath(new URL('../', import.meta.url));
 const storage = await mkdtemp(join(tmpdir(), 'packsignal-smoke-'));
 const keys = { GEMINI_API_KEY: ' ', GEMINI_API_KEY_2: ' ', GEMINI_API_KEY_3: ' ', GEMINI_API_KEY_4: ' ', GEMINI_API_KEY_5: ' ' };
 const lineArtDieline = 'iVBORw0KGgoAAAANSUhEUgAAASwAAADIAQAAAAB6pOH4AAAAW0lEQVR42u3ZMQ6AMAgFUKrey/tPXqXG1aQOhqEb6fz+AiQvYWCkjSjk3qIUbI1F5Qp7Ly89R+b6y5vzk013BQzDMAzDMAzDMAzDMAzDMAzDMMyvbc4Rzf90iX0smiwhw6xoAwAAAABJRU5ErkJggg==';
+const dxfSample = `0\nSECTION\n2\nENTITIES\n0\nLWPOLYLINE\n8\nCUT\n90\n4\n70\n1\n10\n0\n20\n0\n10\n100\n20\n0\n10\n100\n20\n100\n10\n0\n20\n100\n0\nLWPOLYLINE\n8\nPANEL\n90\n4\n70\n1\n10\n10\n20\n10\n10\n45\n20\n10\n10\n45\n20\n90\n10\n10\n20\n90\n0\nLWPOLYLINE\n8\nPANEL\n90\n4\n70\n1\n10\n55\n20\n10\n10\n90\n20\n10\n10\n90\n20\n90\n10\n55\n20\n90\n0\nLINE\n8\nCREASE\n10\n50\n20\n10\n11\n50\n21\n90\n0\nTEXT\n8\nLABELS\n10\n27\n20\n50\n1\nFRONT PANEL\n0\nTEXT\n8\nLABELS\n10\n72\n20\n50\n1\nBACK PANEL\n0\nENDSEC\n0\nEOF\n`;
 let child;
 let output = '';
 
@@ -104,6 +105,38 @@ try {
   assert.ok(review.findings.length > 0, 'The real organizer files produce review findings.');
   assert.ok(review.documents.some(document => document.role === 'artwork' && document.pages.length));
   assert.ok(review.documents.some(document => document.role === 'spec' && document.cells.length));
+
+  const dxfReview = await json(await fetch(`${base}/api/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      name: 'DXF geometry smoke test',
+      mode: 'local',
+      files: [
+        { name: 'dxf-label.png', role: 'artwork', base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jg4QAAAAASUVORK5CYII=' },
+        { name: 'carton.dxf', role: 'dieline', base64: Buffer.from(dxfSample).toString('base64') },
+        { name: 'dxf-spec.json', role: 'spec', base64: Buffer.from(JSON.stringify({ product_name: 'DXF smoke product', net_quantity: '100 g' })).toString('base64') },
+      ],
+    }),
+  }));
+  const dxfDeadline = Date.now() + 120_000;
+  let dxfResult;
+  while (Date.now() < dxfDeadline) {
+    dxfResult = await json(await fetch(`${base}/api/reviews/${dxfReview.id}`));
+    if (dxfResult.status === 'ready' || dxfResult.status === 'failed') break;
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  assert.equal(dxfResult?.status, 'ready', dxfResult?.error || 'DXF review did not finish.');
+  const parsedDxf = dxfResult.documents.find(document => document.role === 'dieline');
+  assert.equal(parsedDxf.vectorGeometry?.format, 'DXF');
+  assert.equal(parsedDxf.vectorGeometry?.lineKinds?.crease, 1);
+  assert.ok(parsedDxf.vectorGeometry?.lineKinds?.cut >= 4);
+  assert.equal(parsedDxf.vectorRegions.filter(region => region.face === 'front').length, 1, 'A positioned label maps to its smallest closed region only.');
+  assert.equal(parsedDxf.vectorRegions.filter(region => region.face === 'back').length, 1);
+  const dxfPreview = await fetch(`${base}/api/reviews/${dxfReview.id}/images/${parsedDxf.pages[0].image}`);
+  assert.equal(dxfPreview.status, 200);
+  assert.match(dxfPreview.headers.get('content-type') || '', /image\/svg\+xml/);
+  assert.match(await dxfPreview.text(), /stroke-dasharray/, 'Explicit crease layer semantics are visible in the vector preview.');
 
   const uploaded = await json(await fetch(`${base}/api/reviews`, {
     method: 'POST',
@@ -202,6 +235,7 @@ try {
       'read-only credential-free Settings UI and AI-default fallback',
       'mutation token enforcement',
       'organizer PDF/XLSX ingestion and review completion',
+      'ASCII DXF linework extraction, layer semantics, closed-panel suggestions, and SVG preview delivery',
       'new image upload review without guessed packaging panel geometry',
       'dieline upload, reviewer-confirmed pouch mapping, and stale-map invalidation',
       'reviewer decision and audit event',

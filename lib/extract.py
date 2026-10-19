@@ -64,12 +64,156 @@ def detect_structural_edges(image):
         # Structural suggestions are optional. Extraction and ordinary review must still complete.
         return []
 
+def _dxf_kind(layer, linetype=''):
+    """Use explicit DXF layer/linetype names only; never infer semantics from color."""
+    def tokens(value):
+        value=re.sub(r'(?<=[a-z])(?=[A-Z])',' ',str(value or ''))
+        return re.findall(r'[a-z]+',value.lower())
+    words=set(tokens(layer)+tokens(linetype))
+    joined=''.join(tokens(layer)+tokens(linetype))
+    if words.intersection({'cut','knife','cutline','cutting'}) or 'diecut' in joined or 'cutcontour' in joined:return 'cut'
+    if words.intersection({'crease','fold','score','bend'}):return 'crease'
+    if words.intersection({'glue','adhesive'}):return 'glue'
+    if words.intersection({'perf','perforation','perforate'}):return 'perforation'
+    return 'unclassified'
+
+def extract_dxf(path, outdir, artifact_id, name):
+    """Read bounded ASCII DXF lines, lightweight polylines and face labels."""
+    p=Path(path); raw=p.read_bytes()
+    if len(raw)>15_000_000:raise ValueError('DXF exceeds the 15 MB file limit.')
+    if b'\x00' in raw:raise ValueError('Binary DXF is not supported. Export an ASCII DXF with LINE or LWPOLYLINE entities.')
+    try:source=raw.decode('utf-8-sig')
+    except UnicodeDecodeError:raise ValueError('DXF must be ASCII or UTF-8 encoded.')
+    rows=source.splitlines()
+    if len(rows)>200_000:raise ValueError('DXF exceeds 100,000 group-code pairs.')
+    if len(rows)%2:raise ValueError('Malformed DXF group-code stream.')
+    pairs=[]
+    try:
+        for index in range(0,len(rows),2):pairs.append((int(rows[index].strip()),rows[index+1].strip()))
+    except ValueError:raise ValueError('Malformed DXF group-code stream.')
+    if len(pairs)>1_000_000:raise ValueError('DXF has too many group codes.')
+    section='';records=[];header=[];index=0
+    while index<len(pairs):
+        code,value=pairs[index]
+        if code==0 and value=='SECTION' and index+1<len(pairs):
+            section=pairs[index+1][1] if pairs[index+1][0]==2 else ''
+            index+=2;continue
+        if code==0 and value=='ENDSEC':section='';index+=1;continue
+        if section=='HEADER':header.append((code,value))
+        if section=='ENTITIES' and code==0:
+            entity=value;groups=[];index+=1
+            while index<len(pairs) and pairs[index][0]!=0:
+                groups.append(pairs[index]);index+=1
+            records.append((entity,groups));continue
+        index+=1
+    if len(records)>25_000:raise ValueError('DXF exceeds 25,000 entities; export only the active dieline.')
+    units_code=None
+    for position,(code,value) in enumerate(header):
+        if code==9 and value=='$INSUNITS' and position+1<len(header) and header[position+1][0]==70:
+            try:units_code=int(header[position+1][1])
+            except ValueError:pass
+    units={0:'unitless',1:'inches',2:'feet',4:'millimeters',5:'centimeters',6:'meters',7:'kilometers',8:'microinches',9:'mils',10:'yards',11:'angstroms',12:'nanometers',13:'microns',14:'decimeters',15:'decameters',16:'hectometers',17:'gigameters',18:'astronomical units',19:'light years',20:'parsecs'}
+    def group_values(groups,code):return [value for item,value in groups if item==code]
+    def number(groups,code,default=None):
+        values=group_values(groups,code)
+        try:return float(values[0]) if values else default
+        except ValueError:return default
+    segments=[];polylines=[];labels=[];unsupported=set()
+    for entity,groups in records:
+        layer=(group_values(groups,8) or ['0'])[0][:128]
+        linetype=(group_values(groups,6) or [''])[0][:128]
+        if entity=='LINE':
+            x0=number(groups,10);y0=number(groups,20);x1=number(groups,11);y1=number(groups,21)
+            if None not in (x0,y0,x1,y1):segments.append(dict(points=[[x0,y0],[x1,y1]],layer=layer,kind=_dxf_kind(layer,linetype)))
+        elif entity=='LWPOLYLINE':
+            xs=group_values(groups,10);ys=group_values(groups,20)
+            try:points=[[float(x),float(y)] for x,y in zip(xs,ys)]
+            except ValueError:points=[]
+            if len(points)>=2:
+                try:closed=bool((int((group_values(groups,70) or ['0'])[0])&1))
+                except ValueError:closed=False
+                poly=dict(points=points,closed=closed,layer=layer,kind=_dxf_kind(layer,linetype))
+                polylines.append(poly)
+                pairs=list(zip(points,points[1:]))+([(points[-1],points[0])] if closed else [])
+                segments.extend(dict(points=[a,b],layer=layer,kind=poly['kind']) for a,b in pairs)
+        elif entity in ('TEXT','MTEXT'):
+            x=number(groups,10);y=number(groups,20);value=' '.join(group_values(groups,1)+group_values(groups,3)).replace('\\P',' ').strip()
+            if x is not None and y is not None and value:labels.append(dict(text=value[:200],point=[x,y],layer=layer))
+        elif entity not in ('POINT','SEQEND','VERTEX','END'):unsupported.add(entity)
+    points=[point for segment in segments for point in segment['points']]+[point for label in labels for point in [label['point']]]
+    if not segments or not points:raise ValueError('No supported LINE or LWPOLYLINE geometry found. Export the dieline as ASCII DXF with those entities.')
+    if any(not all(abs(value)<1e12 for value in point) for point in points):raise ValueError('DXF coordinates are outside the supported range.')
+    min_x=min(point[0] for point in points);max_x=max(point[0] for point in points);min_y=min(point[1] for point in points);max_y=max(point[1] for point in points)
+    span_x=max_x-min_x;span_y=max_y-min_y
+    if span_x<=0:span_x=max(span_y*.01,1);min_x-=span_x/2;max_x+=span_x/2
+    if span_y<=0:span_y=max(span_x*.01,1);min_y-=span_y/2;max_y+=span_y/2
+    scale=1200/max(span_x,span_y);svg_width=round(span_x*scale+60);svg_height=round(span_y*scale+60)
+    def norm(point):return [(point[0]-min_x)/span_x,1-(point[1]-min_y)/span_y]
+    def svgpoint(point):
+        x,y=norm(point);return [round(30+x*span_x*scale,2),round(30+y*span_y*scale,2)]
+    colors={'cut':'#d94f3d','crease':'#367aa1','glue':'#c28b20','perforation':'#8b62a5','unclassified':'#313d36'}
+    dash={'crease':' stroke-dasharray="10 7"','glue':' stroke-dasharray="4 5"','perforation':' stroke-dasharray="12 4 2 4"'}
+    svg=[f'<svg xmlns="http://www.w3.org/2000/svg" width="{svg_width}" height="{svg_height}" viewBox="0 0 {svg_width} {svg_height}"><rect width="100%" height="100%" fill="#fff"/>']
+    for segment in segments:
+        points_svg=[svgpoint(point) for point in segment['points']]
+        point_text=' '.join(f'{x},{y}' for x,y in points_svg);kind=segment['kind']
+        svg.append(f'<polyline points="{point_text}" fill="none" stroke="{colors[kind]}" stroke-width="2"{dash.get(kind,"")}/>')
+    for label in labels:
+        x,y=svgpoint(label['point']);text=escape(label['text'])
+        svg.append(f'<text x="{x}" y="{y}" font-family="Arial,sans-serif" font-size="14" fill="#26342d">{text}</text>')
+    svg.append('</svg>')
+    out=Path(outdir);out.mkdir(parents=True,exist_ok=True);image_name=f'{artifact_id}-p1.svg';(out/image_name).write_text(''.join(svg),encoding='utf-8')
+    def face_from_label(value):
+        text=' '+re.sub(r'[^a-z]+',' ',value.lower()).strip()+' '
+        for aliases,face in [(('front',),'front'),(('back','rear'),'back'),(('left',),'left'),(('right',),'right'),(('top',),'top'),(('bottom',),'bottom')]:
+            if any(f' {word} ' in text for word in aliases):return face
+        return None
+    def inside(point,polygon):
+        x,y=point;hit=False
+        for first,last in zip(polygon,polygon[1:]+polygon[:1]):
+            x0,y0=first;x1,y1=last
+            if ((y0>y)!=(y1>y)) and x<(x1-x0)*(y-y0)/(y1-y0+1e-30)+x0:hit=not hit
+        return hit
+    region_candidates=[]
+    for polyline in polylines:
+        if not polyline['closed'] or len(polyline['points'])<3:continue
+        polygon=polyline['points'];xs=[point[0] for point in polygon];ys=[point[1] for point in polygon]
+        box=[(min(xs)-min_x)/span_x,1-(max(ys)-min_y)/span_y,(max(xs)-min_x)/span_x,1-(min(ys)-min_y)/span_y]
+        area=abs(sum(a[0]*b[1]-b[0]*a[1] for a,b in zip(polygon,polygon[1:]+polygon[:1])))/2/(span_x*span_y)
+        if area<.006:continue
+        region_candidates.append(dict(page=1,box=[max(0,min(1,value)) for value in box],points=[norm(point) for point in polygon],layer=polyline['layer'],sourceLabel='',face=None,area=area,_polygon=polygon))
+    assignments={}
+    for label in labels:
+        containing=[(index,region) for index,region in enumerate(region_candidates) if inside(label['point'],region['_polygon'])]
+        if containing:
+            index,region=min(containing,key=lambda item:item[1]['area'])
+            face=face_from_label(label['text'])
+            if face:assignments.setdefault(index,[]).append((label,face))
+    regions=[]
+    for index,region in enumerate(region_candidates):
+        region.pop('_polygon')
+        matching=assignments.get(index,[])
+        if matching:region['sourceLabel']=matching[0][0]['text'];region['face']=matching[0][1]
+        regions.append(region)
+    panel_labels=[]
+    for label in labels:
+        x,y=norm(label['point']);face=face_from_label(label['text']);label_width=min(.16,max(.015,len(label['text'])*.004));label_height=.018
+        panel_labels.append(dict(text=label['text'],page=1,box=[max(0,x-label_width/2),max(0,y-label_height/2),min(1,x+label_width/2),min(1,y+label_height/2)],face=face))
+    counts={kind:sum(segment['kind']==kind for segment in segments) for kind in colors}
+    doc=dict(id=artifact_id,name=name,role='dieline',sha256=hashlib.sha256(raw).hexdigest(),bytes=len(raw),pages=[dict(number=1,width=span_x,height=span_y,unit=units.get(units_code,'drawing units'),image=image_name,text='',codes=[],method='dxf_vector_geometry')],cells=[],lines=[],panelLabels=panel_labels,structuralEdges=[],vectorLines=[dict(page=1,points=[norm(point) for point in segment['points']],layer=segment['layer'],kind=segment['kind']) for segment in segments],vectorRegions=regions,vectorGeometry=dict(format='DXF',units=units.get(units_code,'drawing units'),entityCount=len(records),lineCount=len(segments),regionCount=len(regions),lineKinds=counts,unsupportedEntities=sorted(unsupported)),warnings=[],text='',data=None)
+    if unsupported:doc['warnings'].append('DXF preview preserves LINE and LWPOLYLINE entities; unsupported entities were omitted: '+', '.join(sorted(unsupported)[:12])+'. Inspect the original CAD file for blocks, splines, arcs, hatches, and paper-space geometry.')
+    if not labels:doc['warnings'].append('No positioned face text was found in the supported DXF entities. Exact linework is shown; map artwork faces manually.')
+    return doc
+
 def extract(path, role, outdir, artifact_id, name):
     from PIL import Image, ImageOps
     p = Path(path); out = Path(outdir); out.mkdir(parents=True, exist_ok=True)
     doc = dict(id=artifact_id, name=name, role=role, sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
                bytes=p.stat().st_size, pages=[], cells=[], lines=[], panelLabels=[], structuralEdges=[], warnings=[], text='', data=None)
     ext = p.suffix.lower()
+    if ext=='.dxf':
+        if role!='dieline':raise ValueError('DXF files are supported only as a dieline / structural reference.')
+        return extract_dxf(p,outdir,artifact_id,name)
     if ext in ('.xlsx', '.docx'):
         with zipfile.ZipFile(p) as archive:
             if len(archive.infolist()) > 2000 or sum(x.file_size for x in archive.infolist()) > 80_000_000:

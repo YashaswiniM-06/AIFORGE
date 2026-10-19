@@ -51,6 +51,7 @@ function groupRows(labels) {
  */
 export function suggestDielineMapping(document, type = 'carton') {
   const selected = packageType(type);
+  const isStructuredDxf = document?.vectorGeometry?.format === 'DXF';
   const labels = (document?.panelLabels || [])
     .filter(item => Number.isInteger(item.page) && Array.isArray(item.box) && item.box.length === 4)
     .map(item => ({ ...item, face: faceFromLabel(item.text, selected.id) }))
@@ -66,7 +67,22 @@ export function suggestDielineMapping(document, type = 'carton') {
     byPage.get(label.page).push(label);
   }
 
-  for (const [page, pageLabels] of byPage) {
+  if (isStructuredDxf) {
+    // A labelled closed DXF region is a geometry-backed suggestion. If the
+    // same face label occurs more than once, leave it for the reviewer.
+    for (const face of selected.faces) {
+      const matches = (document.vectorRegions || []).filter(region =>
+        region.face === face && Number.isInteger(region.page) && Array.isArray(region.box) && region.box.length === 4 &&
+        Number.isFinite(region.area) && region.area > 0 && region.area < 0.9
+      );
+      if (matches.length === 1) {
+        const region = matches[0];
+        zones[face] = { page: region.page, box: region.box, sourceLabel: region.sourceLabel, sourceGeometry: 'closed DXF region' };
+      }
+    }
+  }
+
+  for (const [page, pageLabels] of isStructuredDxf ? [] : byPage) {
     const rows = groupRows(pageLabels);
     const rowBounds = rows.map((row, index) => ({
       top: index === 0 ? 0 : (rows[index - 1].center + row.center) / 2,
@@ -98,7 +114,18 @@ export function suggestDielineMapping(document, type = 'carton') {
   }
 
   const candidateRegions = [];
-  for (const page of [...new Set(edges.map(edge => edge.page))]) {
+  if (isStructuredDxf) {
+    for (const region of document.vectorRegions || []) {
+      if (!Number.isInteger(region.page) || !Array.isArray(region.box) || region.box.length !== 4 || !Number.isFinite(region.area) || region.area <= 0 || region.area >= 0.9) continue;
+      candidateRegions.push({
+        page: region.page,
+        box: region.box,
+        label: region.sourceLabel || `${region.layer || 'DXF region'} region`,
+        face: selected.faces.includes(region.face) ? region.face : undefined,
+        sourceGeometry: 'closed DXF polyline',
+      });
+    }
+  } else for (const page of [...new Set(edges.map(edge => edge.page))]) {
     const vertical = [...new Set(edges.filter(edge => edge.page === page && edge.axis === 'vertical').map(edge => edge.position))].sort((a, b) => a - b);
     const horizontal = [...new Set(edges.filter(edge => edge.page === page && edge.axis === 'horizontal').map(edge => edge.position))].sort((a, b) => a - b);
     const verticalSpans = edges.filter(edge => edge.page === page && edge.axis === 'vertical').flatMap(edge => edge.extent || []);
@@ -122,7 +149,9 @@ export function suggestDielineMapping(document, type = 'carton') {
     candidateRegions,
     labelCount: labels.length,
     pages: [...new Set(labels.map(item => item.page))],
-    note: labels.length
+    note: isStructuredDxf
+      ? `Structured DXF geometry: ${document.vectorGeometry.lineCount || 0} drawn line segments across cut (${document.vectorGeometry.lineKinds?.cut || 0}), crease (${document.vectorGeometry.lineKinds?.crease || 0}), glue (${document.vectorGeometry.lineKinds?.glue || 0}), and other layers. Only explicit layer names classify line purpose. ${Object.keys(zones).length} uniquely labelled closed face region(s) can be copied; confirm every crop. The package-shaped 3D preview remains illustrative.`
+      : labels.length
       ? 'Positioned face labels suggest identities. Long straight strokes add boundary cues; line style alone cannot tell cut from crease. Inspect every suggestion against the source before use.'
       : edges.length
         ? `${edges.length} long straight line candidates and ${candidateRegions.length} unlabelled regions were found. They are visual cues only; assign faces manually and verify cut versus crease in the source.`
