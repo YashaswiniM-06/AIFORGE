@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { selectedFacePreview, panelZoneMapper } from '../public/panel-zones.js';
-import { sourcePreviewZones, workbenchArtwork } from '../public/artwork-ui.js';
+import { captureFaceSuggestions, sourcePreviewZones, workbenchArtwork } from '../public/artwork-ui.js';
 
 const review = () => ({id:'preview-check',sample:'organizer',options:{panelZones:{}},findings:[],documents:[{role:'artwork',name:'carton.pdf',pages:[{number:1,width:1800,height:1507,image:'page-1.png'},{number:2,width:900,height:1200,image:'page-2.png'}]}]});
 test('each organizer face previews its own source crop without creating a mapping',()=>{
@@ -44,4 +44,59 @@ test('mapping form exposes an immediate selected-face preview',()=>{
   assert.match(html,/Preview \/ map face/);
   assert.match(html,/data-zone-face-preview aria-live="polite"/);
   assert.match(html,/Front panel artwork crop/);
+});
+
+test('captured face photos preview their own pages and remain unconfirmed until mapped',()=>{
+  const r=review();delete r.sample;
+  r.options.captureFaces=[{page:1,face:'front',box:[0,0,1,.96]},{page:2,face:'back',box:[0,0,1,.95]}];
+  const before=structuredClone(r);
+  assert.deepEqual(sourcePreviewZones(r),{
+    front:{page:1,box:[0,0,1,.96]},back:{page:2,box:[0,0,1,.95]},
+  });
+  const html=workbenchArtwork(r,null,{mode:'3d'});
+  assert.match(html,/Captured photos · preview only/);
+  assert.match(html,/data-carton-face="back"[^>]*>[\s\S]*?page-2.png/);
+  assert.match(html,/face names chosen during capture/);
+  assert.doesNotMatch(html,/data-cad-export|data-geometry-source="dxf"|carton-pin /);
+  assert.match(selectedFacePreview(r,{},'back'),/Captured face photo · not a saved map/);
+  assert.deepEqual(r,before);
+});
+
+test('ambiguous and invalid capture faces never become geometry suggestions',()=>{
+  const r=review();delete r.sample;
+  r.options.captureFaces=[
+    {page:1,face:'front',box:[0,0,1,.96]}, {page:2,face:'front',box:[0,0,1,.96]},
+    {page:1,face:'unassigned',box:[0,0,1,.96]}, {page:9,face:'back',box:[0,0,1,.96]},
+    {page:1,face:'right',box:[-.1,0,1,.96]}, {page:1,face:'bottom',box:[.5,0,.4,.96]},
+  ];
+  assert.deepEqual(captureFaceSuggestions(r),{});
+  r.sample='organizer';r.options.captureFaces=[{page:2,face:'front',box:[0,0,1,1]}];
+  assert.deepEqual(captureFaceSuggestions(r),{});
+  assert.equal(sourcePreviewZones(r).front.page,1);
+});
+
+test('camera-only face mapper permits package selection and confirmation without a dieline',()=>{
+  const r=review();delete r.sample;
+  r.options.captureFaces=[{page:1,face:'front',box:[0,0,1,.96]}];
+  const empty=panelZoneMapper(r);
+  assert.match(empty,/PHOTO & ARTWORK PACKAGE PREVIEW/);
+  assert.match(empty,/name="packageType"/);
+  assert.match(empty,/Use labelled photos as starting crops/);
+  assert.match(empty,/data-zone-page-use/);
+  assert.match(empty,/data-package-confirm[^>]*disabled/);
+  r.options.panelZones.front={page:1,box:[.1,.1,.8,.9]};
+  r.options.packageMappingConfirmed=true;
+  assert.match(panelZoneMapper(r),/data-package-confirm checked/);
+  assert.doesNotMatch(panelZoneMapper(review()),/PHOTO & ARTWORK PACKAGE PREVIEW|data-zone-page-use/);
+});
+
+test('photo reviews use each selected package shape without granting a CAD export',()=>{
+  for(const type of ['pouch','bottle_label','sleeve']){
+    const r=review();delete r.sample;
+    r.options={packageType:type,packageMappingConfirmed:true,panelZones:{front:{page:1,box:[.1,.1,.8,.9]},back:{page:2,box:[.1,.1,.8,.9]}}};
+    const html=workbenchArtwork(r,null,{mode:'3d'});
+    assert.match(html,new RegExp(`class="carton-model package-${type.replace('_','-')}"`));
+    assert.match(html,/data-geometry-source="illustrative"/);
+    assert.doesNotMatch(html,/data-cad-export/);
+  }
 });

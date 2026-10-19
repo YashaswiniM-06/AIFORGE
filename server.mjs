@@ -17,6 +17,7 @@ import { buildSourceRevisionInputs } from './lib/source-revision-inputs.mjs';
 import { authenticateLegacyUser, authenticateTeamUser, parseTeamUsers } from './lib/team-auth.mjs';
 import { addFindingApproval, addFindingComment, canReviewFinding, canViewReview, setFindingAssignment } from './lib/team-review.mjs';
 import { verifyPersistentMount } from './lib/persistent-storage.mjs';
+import { convertMedia, MEDIA_MAX_BYTES, MEDIA_MAX_SECONDS } from './lib/media-intake.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const sendPublicFile=createPublicFileSender(join(root,'public'));
@@ -154,8 +155,9 @@ const samples={
 const fielddaySampleZones={front:{page:1,box:[40/1200,60/860,510/1200,802/860]},back:{page:1,box:[532/1200,60/860,1160/1200,802/860]}};
 const sampleZones=sample=>['fieldday','clean','conflict','signals'].includes(sample)?structuredClone(fielddaySampleZones):{};
 async function writeInputs(r,files){
-  if(!Array.isArray(files)||files.length<2||files.length>8)throw fail('Supply one artwork and at least one reference, up to eight files.');
-  if(files.filter(f=>f.role==='artwork').length!==1||!files.some(f=>['spec','rules'].includes(f.role)))throw fail('Choose one artwork and at least one product specification or rulebook.');
+  if(!Array.isArray(files)||files.length<1||files.length>8)throw fail('Supply one artwork and optional references, up to eight files.');
+  if(files.filter(f=>f.role==='artwork').length!==1)throw fail('Choose exactly one artwork file.');
+  if(files.some(f=>f.captureFaces!==undefined&&f.role!=='artwork'))throw fail('Face labels can only be attached to artwork.');
   let total=0;const written=[];
   for(const f of files){
     const name=basename(String(f.name||'')).replace(/[\x00-\x1f]/g,'').slice(0,160),ext=extname(name).toLowerCase();
@@ -167,7 +169,16 @@ async function writeInputs(r,files){
     if(typeof f.base64!=='string'||!f.base64.length||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.base64))throw fail('Invalid encoded file.');
     const bytes=Buffer.from(f.base64,'base64');total+=bytes.length;
     if(bytes.length>15_000_000||total>30_000_000)throw fail('Limit: 15 MB per file, 30 MB per review.',413);
-    const id=randomUUID(),disk=id+ext;await writeFile(join(dir(r.id),'files',disk),bytes,{mode:0o600});written.push({id,name,role:f.role,disk});
+    let captureFaces;
+    if(f.captureFaces!==undefined){
+      if(!Array.isArray(f.captureFaces)||f.captureFaces.length>8)throw fail('Artwork face labels are invalid.');
+      captureFaces=f.captureFaces.map(item=>{
+        if(!item||!Number.isInteger(item.page)||item.page<1||!['front','right','back','left','top','bottom','unassigned'].includes(item.face)||!Array.isArray(item.box)||item.box.length!==4)throw fail('Artwork face labels are invalid.');
+        const box=item.box.map(Number);if(!box.every(Number.isFinite)||box.some(value=>value<0||value>1)||box[0]>=box[2]||box[1]>=box[3])throw fail('Artwork face labels are invalid.');
+        return {page:item.page,face:item.face,box};
+      });
+    }
+    const id=randomUUID(),disk=id+ext;await writeFile(join(dir(r.id),'files',disk),bytes,{mode:0o600});written.push({id,name,role:f.role,disk,...(captureFaces?{captureFaces}:{})});
   }
   if(written.filter(file=>file.role==='dieline').length>1)throw fail('Add at most one dieline document per review.');
   return written;
@@ -177,7 +188,13 @@ async function processReview(id){
   try{
     r=await load(id);r.status='processing';r.progress='Reading documents and locating evidence';await save(r);r.documents=[];
     for(const file of r.files){r.documents.push(await worker({path:join(dir(id),'files',file.disk),role:file.role,outdir:join(dir(id),'rendered'),id:file.id,name:file.name}));}
-    r.warnings=r.documents.flatMap(d=>d.warnings.map(w=>d.name+': '+w));r.engine='Local extraction + exact comparisons';
+    const artworkFile=r.files.find(file=>file.role==='artwork'),artworkDocument=r.documents.find(document=>document.role==='artwork');
+    if(artworkFile?.captureFaces?.length){
+      const validPages=new Set((artworkDocument?.pages||[]).map(page=>page.number));
+      r.options.captureFaces=artworkFile.captureFaces.filter(item=>validPages.has(item.page));
+      if(r.options.captureFaces.length!==artworkFile.captureFaces.length)r.captureFaceWarning='Some camera face labels did not match an artwork page and were ignored.';
+    }
+    r.warnings=r.documents.flatMap(d=>d.warnings.map(w=>d.name+': '+w));if(r.captureFaceWarning){r.warnings.push(r.captureFaceWarning);delete r.captureFaceWarning;}r.engine='Local extraction + exact comparisons';
     r.aiStatus=r.mode==='ai'?'pending':'not_requested';
     refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId){const previous=await load(r.parentId);r.revision=compareRevisions(previous,r);carryForwardUnaffectedSourceDecisions(previous,r);}
     r.status='ready';r.progress='Local checks complete';r.finishedAt=new Date().toISOString();audit(r,'local_analysis_completed',`${r.findings.length} findings; ${r.engine}`);await save(r);
@@ -276,7 +293,7 @@ for(const id of await readdir(join(storage,'reviews'))){try{const r=await readRe
 const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.pdf':'application/pdf','.json':'application/json','.xlsx':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'};
 async function sendFile(req,res,path,name){const info=await stat(path);res.writeHead(200,{'Content-Type':mime[extname(path)]||'application/octet-stream','Content-Length':info.size,'Cache-Control':'no-store',...(name?{'Content-Disposition':`attachment; filename="${name.replace(/[^a-zA-Z0-9._-]/g,'_')}"`}:{})});if(req.method==='HEAD')res.end();else createReadStream(path).on('error',()=>res.destroy()).pipe(res);}
 const server=createServer(async(req,res)=>{
-  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; frame-src 'self'; base-uri 'none'; frame-ancestors 'none'");
+  res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');res.setHeader('X-Frame-Options','DENY');res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; object-src 'none'; frame-src 'self'; base-uri 'none'; frame-ancestors 'none'");
   try{
     const requestHost=req.headers.host||'';
     if(allowedHosts.size&&!allowedHosts.has(requestHost)&&!requestHost.endsWith('.onrender.com'))throw fail('Unrecognized host.',403);
@@ -292,7 +309,13 @@ const server=createServer(async(req,res)=>{
     if(!['GET','HEAD'].includes(req.method)&&req.headers['x-packproof-token']!==csrf)throw fail('Refresh the page to renew your request token.',403);
     if(publicFiles.has(path)&&['GET','HEAD'].includes(method))return await sendPublicFile(req,res,path);
     if(path==='/api/market-presets'&&method==='GET')return json(res,200,marketPresets);
-    if(path==='/api/status'&&method==='GET'){const aiUsage=geminiStatus(),inProgress=aiUsage.lastOutcome==='Request in progress'||aiUsage.lastOutcome.startsWith('Waiting before retry');const aiConnection=!apiKeys.length?'not_configured':inProgress?'running':aiUsage.lastOutcome==='Live request completed'?'verified':aiUsage.lastOutcome==='No live request yet'?'configured':'attention';return json(res,200,{csrf,aiConfigured:Boolean(apiKeys.length),aiConnection,model,aiUsage,queued:jobs.size,limits:{files:8,fileMB:15,totalMB:30,pdfPages:12},team:{enabled:teamEnabled,currentUser:{id:actor.id,username:actor.username,displayName:actor.displayName,role:actor.role},members:publicTeamUsers},storage:{persistent:persistentStorageReady,required:persistentStorageRequired},security:{authenticated:teamEnabled||Boolean(accessPassword),required:process.env.PACKPROOF_REQUIRE_AUTH==='true',hosted:process.env.NODE_ENV==='production'},scope:'Private workspace or access-controlled hosted demo; human release decision required.'});}
+    if(path==='/api/status'&&method==='GET'){const aiUsage=geminiStatus(),inProgress=aiUsage.lastOutcome==='Request in progress'||aiUsage.lastOutcome.startsWith('Waiting before retry');const aiConnection=!apiKeys.length?'not_configured':inProgress?'running':aiUsage.lastOutcome==='Live request completed'?'verified':aiUsage.lastOutcome==='No live request yet'?'configured':'attention';return json(res,200,{csrf,aiConfigured:Boolean(apiKeys.length),aiConnection,model,aiUsage,queued:jobs.size,limits:{files:8,fileMB:15,totalMB:30,pdfPages:12,mediaMB:MEDIA_MAX_BYTES/1_000_000,videoSeconds:MEDIA_MAX_SECONDS,mediaFrames:8},team:{enabled:teamEnabled,currentUser:{id:actor.id,username:actor.username,displayName:actor.displayName,role:actor.role},members:publicTeamUsers},storage:{persistent:persistentStorageReady,required:persistentStorageRequired},security:{authenticated:teamEnabled||Boolean(accessPassword),required:process.env.PACKPROOF_REQUIRE_AUTH==='true',hosted:process.env.NODE_ENV==='production'},scope:'Private workspace or access-controlled hosted demo; human release decision required.'});}
+    if(path==='/api/media/convert'&&method==='POST'){
+      const b=await body(req);
+      if(!b||typeof b!=='object'||Array.isArray(b)||typeof b.base64!=='string'||!/^[A-Za-z0-9+/]*={0,2}$/.test(b.base64))throw fail('Choose a readable photo or video.',400);
+      if(b.base64.length>Math.ceil(MEDIA_MAX_BYTES*4/3)+8)throw fail('Choose a photo or video up to 30 MB.',413);
+      return json(res,200,await convertMedia({bytes:Buffer.from(b.base64,'base64'),name:String(b.name||''),kind:b.kind,maxFrames:b.maxFrames??8}));
+    }
     if(path==='/api/reviews'&&method==='POST')return json(res,202,presentReview(await createReview(await body(req),actor),actor));
     if(path==='/api/reviews'&&method==='GET'){const all=await Promise.all((await readdir(join(storage,'reviews'))).map(async id=>{try{const r=await readReview(id);if(!canViewReview(r,actor))return null;return {id:r.id,name:r.name,createdAt:r.createdAt,finishedAt:r.finishedAt,status:r.status,counts:r.counts,engine:r.engine,sample:r.sample,parentId:r.parentId,createdBy:r.team?.createdBy||null,assignmentCount:Object.values(r.team?.assignments||{}).filter(assignment=>assignment.reviewerIds?.includes(actor.id)).length};}catch{return null;}}));return json(res,200,all.filter(Boolean).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
     const match=path.match(/^\/api\/reviews\/([a-f0-9-]{36})(?:\/(.*))?$/);
@@ -329,7 +352,7 @@ const server=createServer(async(req,res)=>{
         if(b.legibilityThresholdMm!==undefined){const threshold=Number(b.legibilityThresholdMm);if(!Number.isFinite(threshold)||threshold<0.1||threshold>10)throw fail('Text-height screening value must be between 0.1 and 10 mm.');r.options.legibilityThresholdMm=threshold;}
         if(b.nutritionVariant!==undefined){if(typeof b.nutritionVariant!=='string'||b.nutritionVariant.length>30)throw fail('Invalid nutrition column.');r.options.nutritionVariant=b.nutritionVariant;}
         refreshDependencies(r);
-        if(b.packageMappingConfirmed===true&&(!r.documents.some(document=>document.role==='dieline')||!r.options.panelZones?.front?.box))throw fail('Upload a dieline and map the front artwork face before confirming the 3D package preview.');
+        if(b.packageMappingConfirmed===true&&!r.options.panelZones?.front?.box)throw fail('Map and inspect the front artwork face before confirming the 3D package preview.');
         r.options.confirmationFingerprints ||= {};r.options.staleConfirmations ||= {};
         for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','packageMappingConfirmed','netQuantityConfirmed'])if(typeof b[key]==='boolean'){
           const nextFingerprint=confirmationFingerprint(r,key),prior=priorConfirmations[key];

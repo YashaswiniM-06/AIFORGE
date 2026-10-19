@@ -13,7 +13,7 @@ import { engineStatusCopy } from "./engine-status-copy.js";
 import { mergeReviewSummary } from "./review-summary.js";
 import { sourceImpactView } from "./source-impact.js";
 import { teamReviewView } from "./team-review.js";
-import { cameraIntakeMarkup, mountCameraIntake, combineArtworkImagesAsPdf } from "./camera-intake.js";
+import { cameraIntakeMarkup, mountCameraIntake, combineArtworkImagesAsPdf, refreshCameraIntakeQuality } from "./camera-intake.js";
 import "./review-actions.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -555,7 +555,21 @@ function showUpload(revision = false, sourceRevision = false) {
   if (!revision && !sourceRevision) mountCameraIntake($('#dialog'), files => {
     for (const file of files) { file.role = 'artwork'; uploads.push(file); }
     uploadList();
-  }, () => uploads.filter(file => file.role === 'artwork' && (/^image\//.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name))).length);
+  }, () => uploads.filter(file => file.role === 'artwork' && (/^image\//.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name))).length, convertCapturedMedia);
+}
+async function convertCapturedMedia(file, kind, maxFrames = 8) {
+  if (file.size > 30 * 1024 * 1024) throw new Error('Choose a photo or video up to 30 MB.');
+  const result = await api('/media/convert', {
+    method: 'POST', timeoutMs: 60_000,
+    body: { name: file.name, kind, maxFrames, base64: await encode(file) },
+  });
+  return (result.frames || []).map(frame => {
+    const binary = atob(frame.base64), bytes = new Uint8Array(binary.length);
+    for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+    const image = new File([bytes], frame.name, { type: frame.mimeType || 'image/jpeg' });
+    image.cameraMedia = true; image.captureFace = 'unassigned'; image.captureTime = frame.timeSeconds;
+    return image;
+  });
 }
 function uploadList() {
   const sourceTargets = (current?.files || []).filter(file => ["spec", "rules", "claims"].includes(file.role));
@@ -804,6 +818,7 @@ document.addEventListener("click", async (event) => {
     if (action === "remove-file") {
       uploads.splice(Number(b.dataset.index), 1);
       uploadList();
+      refreshCameraIntakeQuality($('#dialog'), uploads);
     }
     if (action === "sample-revision") {
       b.disabled = true;
@@ -920,7 +935,7 @@ document.addEventListener("submit", async (event) => {
       const otherArtwork = uploadFiles.filter(file => file.role === 'artwork' && !imageArtwork.includes(file));
       if (imageArtwork.length && (imageArtwork.length > 1 || imageArtwork.some(file => file.cameraMedia))) {
         if (otherArtwork.length) throw new Error('Use either one artwork PDF or captured/photo artwork pages in a review. Move extra PDFs to a reference role or remove them.');
-        const combined = await combineArtworkImagesAsPdf(imageArtwork);
+        const combined = await combineArtworkImagesAsPdf(imageArtwork, convertCapturedMedia);
         uploadFiles = [combined, ...uploadFiles.filter(file => !imageArtwork.includes(file))];
         combined.role = 'artwork';
       }
@@ -934,6 +949,7 @@ document.addEventListener("submit", async (event) => {
           name: f.name,
           role: f.role,
           base64: await encode(f),
+          ...(Array.isArray(f.captureFaces) ? { captureFaces: f.captureFaces } : {}),
           ...(sourceRevisionUpload ? { replacesFileId: f.replaceFileId } : {}),
         })),
       );

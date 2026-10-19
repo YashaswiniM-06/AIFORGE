@@ -16,6 +16,46 @@ function gtinFromPrefix(prefix){
   return body+String((10-(sum%10))%10);
 }
 
+test('artwork-only image review remains inspectable and explicitly requests references and transcription',()=>{
+  const art={id:'art',name:'camera.pdf',role:'artwork',text:'',lines:[],cells:[],pages:[
+    {number:1,width:600,height:900,image:'front.png',text:'',method:'vision_needed',codes:[]},
+    {number:2,width:600,height:900,image:'back.png',text:'',method:'vision_needed',codes:[]},
+  ]};
+  const input={documents:[art],options:{},decisions:{},audit:[]},before=structuredClone(input);
+  const result=analyze(input);
+  const missing=result.findings.find(item=>item.key==='missing-reference');
+  assert.equal(missing.status,'unable');
+  assert.equal(missing.method,'review_input_gap');
+  assert.match(missing.explanation,/2D inspection and face mapping/);
+  assert.match(missing.explanation,/Create a review with these images and an approved product specification or checklist/);
+  const unread=result.findings.find(item=>item.key==='artwork-text-unavailable');
+  assert.equal(unread.status,'unable');
+  assert.deepEqual(unread.evidence.map(item=>item.page),[1,2]);
+  assert.equal(result.findings.some(item=>item.key==='no-reference'),false,'Do not duplicate the missing-reference explanation.');
+  assert.equal(result.counts.match,0);
+  assert.equal(result.counts.issue,0);
+  assert.equal(result.coverage.completeArtwork,false);
+  assert.deepEqual(result.facts,[]);
+  assert.deepEqual(input,before,'The original camera pages must remain unchanged.');
+});
+
+test('transcribed artwork alone yields observed signals but never product-reference matches',()=>{
+  const text='MEADOW MILK\nNET QUANTITY 1 L\nNo Added Sugar\nIngredientes: leche\nConservar refrigerado';
+  const art={id:'art',name:'camera.pdf',role:'artwork',text,lines:text.split('\n').map(text=>({text,page:1,box:null})),cells:[],pages:[
+    {number:1,width:600,height:900,image:'front.png',text,method:'ai_transcription',codes:[{format:'EAN13',gtin:'4006381333931',box:[.2,.6,.5,.8]}]},
+  ]};
+  const result=analyze({documents:[art],options:{completeArtwork:true,sourceConfirmed:true},ai:{facts:[{documentId:'art',field:'net_quantity',value:'1 L',quote:'NET QUANTITY 1 L'}]},decisions:{},audit:[]});
+  assert.equal(result.findings.find(item=>item.key==='missing-reference').status,'unable');
+  assert.equal(result.findings.some(item=>item.key==='artwork-text-unavailable'),false);
+  assert.equal(result.findings.find(item=>item.method==='language_detection').status,'review');
+  assert.equal(result.findings.find(item=>item.method==='gtin_record_check').status,'review');
+  assert.equal(result.findings.find(item=>item.key==='claim-review').status,'review');
+  assert.equal(result.counts.match,0);
+  assert.deepEqual(result.facts,[],'Observed artwork must not become its own approved reference.');
+  assert.equal(result.coverage.completeArtwork,false,'AI transcription cannot establish completeness, even with the checkbox set.');
+  assert.match(result.coverage.limits[0],/Product-copy correctness remains unverified/);
+});
+
 test('validates GTIN-8, GTIN-12, GTIN-13 and GTIN-14 check digits and normalizes equivalent zero padding',()=>{
   for(const value of ['96385074','036000291452','4006381333931','10012345000017'])assert.equal(hasValidGtinCheckDigit(value),true,value);
   assert.equal(hasValidGtinCheckDigit('4006381333932'),false);

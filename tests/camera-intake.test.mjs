@@ -19,7 +19,7 @@ test('photo preflight warns about low-detail blur and overexposed glare', () => 
   assert.equal(detailed.blur, false);
   assert.equal(detailed.glare, false);
 });
-test('camera pages are assembled into a valid multipage PDF with byte-accurate cross references', () => {
+test('camera pages are assembled without treating generated photo labels as artwork evidence', () => {
   const pdf = buildArtworkPdf([
     { bytes: Uint8Array.from([255, 216, 255, 217]), width: 1200, height: 800, label: 'front-face.jpg' },
     { bytes: Uint8Array.from([255, 216, 255, 217]), width: 800, height: 1200, label: 'back-face.jpg' },
@@ -27,8 +27,7 @@ test('camera pages are assembled into a valid multipage PDF with byte-accurate c
   const source = Buffer.from(pdf).toString('latin1');
   assert.ok(source.startsWith('%PDF-1.4'));
   assert.match(source, /\/Count 2/);
-  assert.match(source, /front-face\.jpg/);
-  assert.match(source, /back-face\.jpg/);
+  assert.doesNotMatch(source, /front-face\.jpg|back-face\.jpg/);
   const start = Number(source.match(/startxref\n(\d+)/)?.[1]);
   assert.equal(source.slice(start, start + 4), 'xref');
   const entries = source.slice(start).match(/\n(\d{10}) 00000 n /g) || [];

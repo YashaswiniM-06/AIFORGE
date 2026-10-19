@@ -2,12 +2,14 @@ const faces = [
   ['front', 'Front'], ['right', 'Right side'], ['back', 'Back'],
   ['left', 'Left side'], ['top', 'Top'], ['bottom', 'Bottom'],
 ];
+let captureSequence = 0;
+const captureName = prefix => `${prefix}-${String(++captureSequence).padStart(3, '0')}.jpg`;
 
 export function cameraIntakeMarkup() {
   return `<section class="camera-intake panel" data-camera-intake>
     <div class="eyebrow">CAMERA & PHOTO INTAKE</div>
     <h3>Capture package faces</h3>
-    <p class="subtle">Take face-by-face photos, choose images, or extract stills from a video. Photos become pages in one artwork PDF and continue through the normal 2D review. Confirm each face in Sources before the 3D preview.</p>
+    <p class="subtle">Take face-by-face photos, choose images, or extract stills from a video. Common photo and video formats up to 30 MB are supported; videos can be up to two minutes and provide up to eight review pages. Photos continue through the normal 2D review; confirm face crops in Sources before the 3D preview.</p>
     <div class="camera-intake-actions">
       <label>Face to capture<select data-capture-face>${faces.map(([id,label]) => `<option value="${id}">${label}</option>`).join('')}</select></label>
       <button type="button" class="secondary" data-camera-start>Open camera</button>
@@ -50,8 +52,16 @@ function canvasQuality(canvas) {
   return assessPhotoQuality(context.getImageData(0, 0, width, height));
 }
 
-async function normalizeImage(file, name) {
-  const bitmap = await createImageBitmap(file);
+async function normalizeImage(file, name, captureFace = 'unassigned', convertMedia) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch (browserError) {
+    if (!convertMedia) throw new Error(`This browser cannot decode ${file.name}. Try JPEG/PNG or use a recent browser.`);
+    const converted = await convertMedia(file, 'image', 1);
+    const frame = converted[0];
+    if (!frame) throw new Error(`Could not read ${file.name} as an image.`);
+    bitmap = await createImageBitmap(frame);
+  }
   const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bitmap.width * scale));
@@ -65,26 +75,43 @@ async function normalizeImage(file, name) {
   const result = new File([blob], name, { type: 'image/jpeg', lastModified: Date.now() });
   result.cameraMedia = true;
   result.captureQuality = quality;
+  result.captureFace = captureFace;
   return result;
 }
 
-function videoMetadata(video) {
+function videoMetadata(video, timeoutMs = 12000) {
   return new Promise((resolve, reject) => {
-    video.addEventListener('loadedmetadata', resolve, { once: true });
-    video.addEventListener('error', () => reject(new Error('This video could not be opened in the browser. Try MP4 or upload separate photos.')), { once: true });
+    let timer;
+    const cleanup = () => {
+      clearTimeout(timer);
+      video.removeEventListener('loadedmetadata', loaded);
+      video.removeEventListener('error', failed);
+    };
+    const loaded = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error('The browser could not decode the video.')); };
+    if (video.readyState >= 1 && Number.isFinite(video.duration)) return resolve();
+    video.addEventListener('loadedmetadata', loaded, { once: true });
+    video.addEventListener('error', failed, { once: true });
+    timer = setTimeout(() => { cleanup(); reject(new Error('The browser timed out opening the video.')); }, timeoutMs);
   });
 }
 
 function seek(video, time) {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { video.removeEventListener('seeked', done); reject(new Error('Timed out reading a video frame.')); }, 8000);
-    const done = () => { clearTimeout(timer); video.removeEventListener('seeked', done); resolve(); };
+    let timer;
+    const cleanup = () => { clearTimeout(timer); video.removeEventListener('seeked', done); video.removeEventListener('error', failed); };
+    const done = () => { cleanup(); resolve(); };
+    const failed = () => { cleanup(); reject(new Error('The browser could not read a video frame.')); };
+    const target = Math.min(Math.max(0, time), Math.max(0, video.duration - .08));
+    if (Math.abs(video.currentTime - target) < .015 && video.readyState >= 2) return resolve();
+    timer = setTimeout(() => { cleanup(); reject(new Error('Timed out reading a video frame.')); }, 10000);
     video.addEventListener('seeked', done, { once: true });
-    video.currentTime = Math.min(Math.max(0, time), Math.max(0, video.duration - .08));
+    video.addEventListener('error', failed, { once: true });
+    video.currentTime = target;
   });
 }
 
-function frameFile(video, face, index, prefix = 'video-frame') {
+function frameFile(video, face, prefix = 'video') {
   const canvas = document.createElement('canvas');
   const scale = Math.min(1, 2400 / Math.max(video.videoWidth, video.videoHeight));
   canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
@@ -94,47 +121,50 @@ function frameFile(video, face, index, prefix = 'video-frame') {
   const quality = canvasQuality(canvas);
   return new Promise((resolve, reject) => canvas.toBlob(blob => {
     if (!blob) return reject(new Error('Could not extract a video frame.'));
-    const file = new File([blob], `${prefix}-${String(index + 1).padStart(2, '0')}-${face}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
-    file.cameraMedia = true; file.captureQuality = quality; resolve(file);
+    const file = new File([blob], captureName(prefix), { type: 'image/jpeg', lastModified: Date.now() });
+    file.cameraMedia = true; file.captureQuality = quality; file.captureFace = face; resolve(file);
   }, 'image/jpeg', .9));
 }
 
-export function mountCameraIntake(root, onFiles, getCurrentCount = () => 0) {
-  if (!root || root.dataset.cameraMounted) return;
-  root.dataset.cameraMounted = 'true';
+export function mountCameraIntake(container, onFiles, getCurrentCount = () => 0, convertMedia) {
+  const root = container?.matches?.('[data-camera-intake]') ? container : container?.querySelector?.('[data-camera-intake]');
+  if (!root) return;
   const videoPanel = root.querySelector('[data-camera-live]');
   const videoPreview = root.querySelector('[data-camera-video-preview]');
   const status = root.querySelector('[data-camera-status]');
   const qualityList = root.querySelector('[data-camera-quality]');
   const face = () => root.querySelector('[data-capture-face]').value;
-  let stream = null, cameraSequence = 0;
+  let stream = null, closed = false;
   const stop = () => {
     stream?.getTracks().forEach(track => track.stop());
-    stream = null; videoPreview.srcObject = null; videoPanel.hidden = true;
+    stream = null; if (videoPreview) videoPreview.srcObject = null; if (videoPanel) videoPanel.hidden = true;
   };
-  root.closest('dialog')?.addEventListener('close', stop, { once: true });
+  root.closest('dialog')?.addEventListener('close', () => { closed = true; stop(); }, { once: true });
   const addFiles = files => {
-    if (!files.length) return;
+    if (!files.length || closed) return;
     if (files.length > 8 - getCurrentCount()) { status.textContent = 'Keep up to eight photos or video frames in one intake. Remove an item to add another.'; return; }
     onFiles(files);
     for (const file of files) {
       const q = file.captureQuality;
       const warnings = [q?.blur && 'possible blur', q?.glare && `possible glare (${q.glarePercent}%)`].filter(Boolean);
       const item = document.createElement('li');
+      item.dataset.captureName = file.name;
       item.textContent = `${file.name}: ${warnings.length ? warnings.join(', ') + ' — inspect before use' : 'no strong blur/glare signal; inspect the original anyway'}`;
       qualityList.append(item);
     }
     status.textContent = `${files.length} image${files.length === 1 ? '' : 's'} added as artwork page${files.length === 1 ? '' : 's'}. Map the photographed faces in Sources after the review is created.`;
   };
   root.querySelector('[data-camera-start]').addEventListener('click', async event => {
-    event.currentTarget.disabled = true;
+    const button = event.currentTarget; button.disabled = true;
     try {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not offer camera access here. Use Choose photos or Choose video instead.');
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      const nextStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+      if (closed) { nextStream.getTracks().forEach(track => track.stop()); return; }
+      stream = nextStream;
       videoPreview.srcObject = stream; videoPanel.hidden = false; await videoPreview.play();
       status.textContent = 'Camera ready. Choose the face name, frame it square-on, and take a photo.';
     } catch (error) { status.textContent = error.message || 'Camera permission was not available. Use photo or video upload instead.'; }
-    finally { event.currentTarget.disabled = false; }
+    finally { button.disabled = false; }
   });
   root.querySelector('[data-camera-stop]').addEventListener('click', stop);
   root.querySelector('[data-camera-capture]').addEventListener('click', async event => {
@@ -142,7 +172,7 @@ export function mountCameraIntake(root, onFiles, getCurrentCount = () => 0) {
     const button = event.currentTarget; button.disabled = true;
     try {
       if (!videoPreview.videoWidth || !videoPreview.videoHeight) throw new Error('Wait for the camera preview, then take the photo again.');
-      const file = await frameFile(videoPreview, face(), ++cameraSequence, 'camera');
+      const file = await frameFile(videoPreview, face(), 'camera');
       addFiles([file]);
     } catch (error) { status.textContent = error.message || 'Could not capture this image.'; }
     finally { button.disabled = false; }
@@ -152,34 +182,95 @@ export function mountCameraIntake(root, onFiles, getCurrentCount = () => 0) {
     if (selected.length > 8 - getCurrentCount()) { status.textContent = 'Choose at most eight more photos. The review allows up to eight artwork pages.'; return; }
     try {
       const files = [];
-      for (const [index, file] of selected.entries()) files.push(await normalizeImage(file, `photo-${String(index + 1).padStart(2, '0')}-${selected.length === 1 ? face() : 'unassigned'}.jpg`));
+      const labelledFace = selected.length === 1 ? face() : 'unassigned';
+      for (const file of selected) {
+        if (file.size > 30 * 1024 * 1024) { status.textContent = `${file.name} is over the 30 MB photo limit.`; continue; }
+        files.push(await normalizeImage(file, captureName('photo'), labelledFace, convertMedia));
+      }
       addFiles(files);
     } catch (error) { status.textContent = error.message; }
   });
   root.querySelector('[data-camera-video]').addEventListener('change', async event => {
     const input = event.currentTarget, source = input.files?.[0]; input.value = '';
     if (!source) return;
-    status.textContent = 'Extracting representative stills from the video…';
-    const url = URL.createObjectURL(source), video = document.createElement('video');
-    video.preload = 'metadata'; video.muted = true; video.playsInline = true; video.src = url;
+    if (source.size > 30 * 1024 * 1024) { status.textContent = 'Choose a video up to 30 MB.'; return; }
+    status.textContent = 'Preparing representative stills from the video…';
+    if (getCurrentCount() >= 8) { status.textContent = 'Keep up to eight photos or video frames in one intake. Remove an item first.'; return; }
+    let url = null, video = null, serverFallbackError = null;
+    const output = [];
     try {
-      await videoMetadata(video);
-      if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error('Video duration could not be read. Try separate photos.');
-      const count = Math.min(8 - getCurrentCount(), Math.max(3, Math.ceil(video.duration / 4)));
-      if (!count) throw new Error('Keep up to eight photos or video frames in one intake. Remove an item first.');
-      const output = [];
-      for (let index = 0; index < count; index++) {
-        await seek(video, video.duration * ((index + .5) / count));
-        output.push(await frameFile(video, 'angle', index));
+      if (convertMedia) {
+        try {
+          const frames = await convertMedia(source, 'video', 8 - getCurrentCount());
+          for (const [index, frame] of frames.entries()) {
+            const normalized = await normalizeImage(frame, captureName('video'), 'unassigned', convertMedia);
+            normalized.captureTime = frame.captureTime;
+            output.push(normalized);
+          }
+        } catch (serverError) {
+          serverFallbackError = serverError;
+          if (closed) return;
+          status.textContent = 'Server conversion was unavailable; trying this browser’s video decoder…';
+          video = document.createElement('video'); url = URL.createObjectURL(source);
+          video.preload = 'metadata'; video.muted = true; video.playsInline = true;
+          const metadata = videoMetadata(video); video.src = url; video.load(); await metadata;
+          if (!Number.isFinite(video.duration) || video.duration <= 0) throw serverError;
+          const count = Math.min(8 - getCurrentCount(), Math.max(3, Math.ceil(video.duration / 4)));
+          for (let index = 0; index < count; index++) {
+            await seek(video, video.duration * ((index + .5) / count));
+            const frame = await frameFile(video, 'unassigned', 'video');
+            frame.captureTime = video.currentTime;
+            output.push(frame);
+          }
+          addFiles(output);
+          return;
+        }
+        if (output.length) addFiles(output);
+      } else {
+        video = document.createElement('video'); url = URL.createObjectURL(source);
+        video.preload = 'metadata'; video.muted = true; video.playsInline = true;
+        const metadata = videoMetadata(video); video.src = url; video.load(); await metadata;
+        if (!Number.isFinite(video.duration) || video.duration <= 0) throw new Error('Video duration could not be read.');
+        const count = Math.min(8 - getCurrentCount(), Math.max(3, Math.ceil(video.duration / 4)));
+        for (let index = 0; index < count; index++) {
+          await seek(video, video.duration * ((index + .5) / count));
+          const frame = await frameFile(video, 'unassigned', 'video');
+          frame.captureTime = video.currentTime;
+          output.push(frame);
+        }
+        addFiles(output);
       }
-      addFiles(output);
-    } catch (error) { status.textContent = error.message; }
-    finally { URL.revokeObjectURL(url); video.removeAttribute('src'); video.load(); }
+    } catch (error) {
+      status.textContent = serverFallbackError
+        ? `${serverFallbackError.message} The browser fallback also failed: ${error.message}`
+        : error.message;
+    }
+    finally { if (url) URL.revokeObjectURL(url); if (video) { video.removeAttribute('src'); video.load(); } }
   });
 }
 
-async function jpegBytes(file) {
-  const bitmap = await createImageBitmap(file);
+export function refreshCameraIntakeQuality(container, files = []) {
+  const root = container?.matches?.('[data-camera-intake]') ? container : container?.querySelector?.('[data-camera-intake]');
+  const list = root?.querySelector('[data-camera-quality]');
+  if (!list) return;
+  list.replaceChildren();
+  for (const file of files.filter(item => item.cameraMedia)) {
+    const q = file.captureQuality, warnings = [q?.blur && 'possible blur', q?.glare && `possible glare (${q.glarePercent}%)`].filter(Boolean);
+    const item = document.createElement('li'); item.dataset.captureName = file.name;
+    item.textContent = `${file.name}: ${warnings.length ? warnings.join(', ') + ' — inspect before use' : 'no strong blur/glare signal; inspect the original anyway'}`;
+    list.append(item);
+  }
+}
+
+async function jpegBytes(file, convertMedia) {
+  let bitmap;
+  try { bitmap = await createImageBitmap(file); }
+  catch {
+    if (!convertMedia) throw new Error(`Could not open ${file.name} in this browser.`);
+    const [frame] = await convertMedia(file, 'image', 1);
+    if (!frame) throw new Error(`Could not open ${file.name} as an image.`);
+    bitmap = await createImageBitmap(frame);
+  }
   const scale = Math.min(1, 2400 / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(bitmap.width * scale)); canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -205,8 +296,8 @@ export function buildArtworkPdf(images) {
   objects.push(ascii(`<< /Type /Pages /Count ${images.length} /Kids [${pageIds.map(id => `${id} 0 R`).join(' ')}] >>`));
   images.forEach((image, index) => {
     const pageId = pageIds[index], contentId = pageId + 1, imageId = pageId + 2;
-    const pageWidth = 612, imageHeight = pageWidth * image.height / image.width, footer = 30, pageHeight = imageHeight + footer;
-    const content = ascii(`q\n${pageWidth} 0 0 ${imageHeight} 0 ${footer} cm\n/Im${index} Do\nQ\nBT /F1 9 Tf 12 10 Td (${image.label.replace(/[\\()]/g, '\\$&').replace(/[^\x20-\x7e]/g, '?')}) Tj ET\n`);
+    const pageWidth = 612, imageHeight = pageWidth * image.height / image.width, pageHeight = imageHeight;
+    const content = ascii(`q\n${pageWidth} 0 0 ${imageHeight} 0 0 cm\n/Im${index} Do\nQ\n`);
     objects.push(ascii(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight.toFixed(2)}] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> >> /XObject << /Im${index} ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`));
     objects.push(byteJoin([ascii(`<< /Length ${content.length} >>\nstream\n`), content, ascii('endstream')]));
     objects.push(byteJoin([ascii(`<< /Type /XObject /Subtype /Image /Width ${image.width} /Height ${image.height} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${image.bytes.length} >>\nstream\n`), image.bytes, ascii('\nendstream')]));
@@ -223,7 +314,12 @@ export function buildArtworkPdf(images) {
   return byteJoin(chunks);
 }
 
-export async function combineArtworkImagesAsPdf(files) {
-  const images = await Promise.all(files.map(jpegBytes));
-  return new File([buildArtworkPdf(images)], 'package-camera-capture.pdf', { type: 'application/pdf', lastModified: Date.now() });
+export async function combineArtworkImagesAsPdf(files, convertMedia) {
+  const images = await Promise.all(files.map(file => jpegBytes(file, convertMedia)));
+  const combined = new File([buildArtworkPdf(images)], 'package-camera-capture.pdf', { type: 'application/pdf', lastModified: Date.now() });
+  combined.captureFaces = images.map((image, index) => {
+    const file = files[index];
+    return { page: index + 1, face: ['front','right','back','left','top','bottom'].includes(file.captureFace) ? file.captureFace : 'unassigned', box: [0, 0, 1, 1] };
+  });
+  return combined;
 }

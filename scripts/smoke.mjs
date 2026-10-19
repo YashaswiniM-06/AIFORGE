@@ -65,10 +65,14 @@ try {
   assert.equal(status.aiConnection, 'not_configured');
   assert.equal(status.configuredKeyCount, undefined, 'Status should not expose key-pool details.');
   assert.equal(status.limits.pdfPages, 12);
+  assert.equal(status.limits.mediaMB, 30);
+  assert.equal(status.limits.videoSeconds, 120);
 
   const home = await fetch(`${base}/`);
   assert.equal(home.status, 200);
   assert.match(await home.text(), /PackSignal/);
+  assert.match(home.headers.get('content-security-policy') || '', /media-src 'self' blob:/,
+    'The browser may preview locally selected video blobs under the media policy.');
   const clientScript = await (await fetch(`${base}/app.js`)).text();
   assert.doesNotMatch(clientScript, /id="api-key|settings-form|clear-key/,
     'The browser must not contain key-entry or key-clear controls.');
@@ -85,6 +89,42 @@ try {
     body: JSON.stringify({ sample: 'organizer', mode: 'ai' }),
   });
   assert.equal(blocked.status, 403, 'Mutations require the in-session request token.');
+
+  const invalidMedia = await fetch(`${base}/api/media/convert`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({ name: 'bad.mp4', kind: 'video', maxFrames: 0, base64: 'eA==' }),
+  });
+  assert.equal(invalidMedia.status, 400, 'The protected media converter validates its frame limits before decoding.');
+
+  const cameraOnly = await json(await fetch(`${base}/api/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      name: 'Camera only artwork smoke test', mode: 'local',
+      files: [{ name: 'camera-capture.png', role: 'artwork', base64: lineArtDieline,
+        captureFaces: [{ page: 1, face: 'front', box: [0, 0, 1, .95] }] }],
+    }),
+  }));
+  const cameraDeadline = Date.now() + 120_000;
+  let cameraReview;
+  while (Date.now() < cameraDeadline) {
+    cameraReview = await json(await fetch(`${base}/api/reviews/${cameraOnly.id}`));
+    if (cameraReview.status === 'ready' || cameraReview.status === 'failed') break;
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  assert.equal(cameraReview?.status, 'ready', cameraReview?.error || 'Camera-only artwork review did not finish.');
+  assert.equal(cameraReview.options.captureFaces[0].face, 'front');
+  assert.equal(cameraReview.findings.find(item => item.key === 'missing-reference')?.status, 'unable');
+  const cameraMapped = await json(await fetch(`${base}/api/reviews/${cameraOnly.id}/sources`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      reason: 'Inspected captured front photo and illustrative package type.', packageType: 'pouch',
+      panelZones: { front: { page: 1, box: [.02, .02, .98, .92] } }, packageMappingConfirmed: true,
+    }),
+  }));
+  assert.equal(cameraMapped.options.packageMappingConfirmed, true, 'Photo-based front-face mapping does not require a dieline.');
 
   const created = await json(await fetch(`${base}/api/reviews`, {
     method: 'POST',
@@ -294,6 +334,7 @@ try {
       'API status and local-only configuration',
       'read-only credential-free Settings UI and AI-default fallback',
       'mutation token enforcement',
+      'photo/video conversion limits and camera-only artwork review with face mapping',
       'organizer PDF/XLSX ingestion and review completion',
       'ASCII DXF linework extraction, layer semantics, closed-panel suggestions, and SVG preview delivery',
       'new image upload review without guessed packaging panel geometry',
