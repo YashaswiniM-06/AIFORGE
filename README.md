@@ -141,6 +141,7 @@ Set `PACKPROOF_REQUIRE_AUTH=true` in the same environment update. Named accounts
 | [`submission/ARCHITECTURE.md`](submission/ARCHITECTURE.md) | Runtime responsibilities, workflow diagram, status semantics, and trust limits |
 | [`submission/KNOWN_LIMITS.md`](submission/KNOWN_LIMITS.md) | Current implementation limits and production gaps |
 | [`submission/JUDGE_QA.md`](submission/JUDGE_QA.md) | Likely judge questions with direct, evidence-based answers |
+| [`submission/INDEPENDENT_REVIEW.md`](submission/INDEPENDENT_REVIEW.md) | Blind review protocol and scorecard for an external reviewer; no independent result is claimed until completed |
 | [`DEMO_SCRIPT.md`](DEMO_SCRIPT.md) | Timed demo and campus presentation guide |
 
 ## Technology
