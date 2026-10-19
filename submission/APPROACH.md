@@ -27,6 +27,7 @@ The product centers on the artwork-checker theme. Its truth sheet resolves refer
 - **Authority before comparison:** a newer or better-formatted document is not automatically an approved source.
 - **Absence requires coverage:** failure to extract a statement is not proof it is missing.
 - **Evidence is inspectable:** source hashes, quotations, page coordinates and spreadsheet cells accompany findings.
+- **Bounded AI contract:** Gemini fact proposals are schema-limited to fields the checker supports, then checked again before use; a valid-looking quote cannot turn an unsupported field into a checklist result.
 - **Revision safety:** fixing quantity can accidentally remove customer-care copy. Rerunning the whole checklist catches the regression.
 - **Honest uncertainty:** AI-transcribed text, uncompiled rules and unsubstantiated claims are routed to a reviewer.
 - **Portable traceability:** HTML and JSON exports include an inspectable signature proof and a verifier command; the PDF carries its signature and key fingerprint alongside the review evidence.

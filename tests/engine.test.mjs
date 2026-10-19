@@ -25,6 +25,20 @@ test('normalizes case, compatibility characters, and whitespace', () => {
   assert.equal(normal('FIELD DAY　Original'), normal('field day original'));
 });
 
+test('ignores AI facts that use fields outside the supported packaging checks', () => {
+  const art={id:'art',name:'carton.pdf',role:'artwork',text:'NET QUANTITY: 750 mL\nFDA approved',lines:[
+    {text:'NET QUANTITY: 750 mL',line:1,page:1,box:[.1,.1,.5,.2]},
+    {text:'FDA approved',line:2,page:1,box:[.1,.3,.5,.4]},
+  ],pages:[{number:1,width:1000,height:700,method:'pdf_text'}],cells:[]};
+  const spec={id:'spec',name:'spec.txt',role:'spec',text:'Net quantity 750 mL\nFDA approved',lines:[],pages:[],cells:[]};
+  const result=analyze({documents:[art,spec],ai:{facts:[
+    {documentId:'spec',field:'net_quantity',value:'750 mL',quote:'Net quantity 750 mL'},
+    {documentId:'spec',field:'legal_approval',value:'FDA approved',quote:'FDA approved'},
+  ]},options:{},decisions:{},audit:[]});
+  assert.ok(result.findings.some(item=>item.title==='Net quantity'));
+  assert.ok(!result.findings.some(item=>item.title==='legal approval'));
+});
+
 test('routes a sibling-SKU variant mention to human review, not an automatic defect', () => {
   const art={id:'art',name:'carton.pdf',role:'artwork',text:'Original Oat Drink\nChocolate Crunch',lines:[{text:'Original Oat Drink',line:1,page:1,box:[.1,.1,.5,.2]},{text:'Chocolate Crunch',line:2,page:1,box:[.1,.3,.5,.4]}],pages:[{number:1,width:1000,height:700,method:'pdf_text'}],cells:[]};
   const first={id:'spec-a',name:'original.json',role:'spec',text:'Original SKU',lines:[],pages:[],cells:[],data:{product:{sku:'SKU-ORIGINAL',variant:'Original',name:'Oat Drink'}}};

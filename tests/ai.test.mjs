@@ -68,3 +68,26 @@ test('retains completed batch results and names image-only pages when a later ba
     assert.equal(result.transport.attempts,2);
   }finally{await rm(directory,{recursive:true,force:true});}
 });
+
+test('constrains AI fact fields in the response schema and drops unsupported proposals',async()=>{
+  const {directory,review}=await makeReview();
+  review.documents[0].pages=review.documents[0].pages.slice(0,1);
+  review.documents[1].text='Net quantity 750 mL\nFDA approved';
+  let request;
+  try{
+    const result=await geminiReview(review,directory,'schema-test-key','gemini-test',async(_url,options)=>{
+      request=JSON.parse(options.body);
+      return success({
+        facts:[
+          {documentId:'spec-1',field:'net_quantity',value:'750 mL',quote:'Net quantity 750 mL'},
+          {documentId:'spec-1',field:'legal_approval',value:'FDA approved',quote:'FDA approved'},
+        ],
+        rules:[],observations:[],transcriptions:transcriptionPayload(pageLabels(request)).transcriptions,
+      });
+    });
+    const factFields=request.generationConfig.responseJsonSchema.properties.facts.items.properties.field.enum;
+    assert.ok(factFields.includes('net_quantity'));
+    assert.ok(!factFields.includes('legal_approval'));
+    assert.deepEqual(result.facts.map(item=>item.field),['net_quantity']);
+  }finally{await rm(directory,{recursive:true,force:true});}
+});
