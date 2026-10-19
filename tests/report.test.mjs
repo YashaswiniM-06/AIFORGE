@@ -75,3 +75,30 @@ test('portable HTML report preserves source revision values, checklist changes, 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('portable HTML report includes evidence comments and distinct reviewer sign-offs', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'packproof-team-report-'));
+  try {
+    const html = await createHtmlReport({
+      name: 'Team review', market: 'Example market', documents: [], findings: [{ id: 'f1', title: 'Net quantity', status: 'review', evidence: [] }],
+      counts: {}, coverage: { limits: [] }, audit: [],
+      team: {
+        createdBy: 'owner', assignments: { f1: { reviewerIds: ['reviewer1'], assignedByName: 'Owner', at: '2026-10-19T00:00:00.000Z' } },
+        comments: [{ findingId: 'f1', authorId: 'reviewer1', authorName: 'Reviewer One', at: '2026-10-19T00:01:00.000Z', comment: 'Check the exact quote.', evidence: { role: 'artwork', name: 'label.pdf', location: 'Page 1', quote: 'Net wt. 750 g' } }],
+        approvals: [
+          { findingId: 'f1', reviewerId: 'reviewer1', reviewerName: 'Reviewer One', outcome: 'approved', note: 'Evidence matches.', at: '2026-10-19T00:02:00.000Z' },
+          { findingId: 'f1', reviewerId: 'reviewer2', reviewerName: 'Reviewer Two', outcome: 'needs_changes', note: 'Request correction.', at: '2026-10-19T00:03:00.000Z' },
+        ],
+      },
+    }, directory);
+    assert.match(html, /Team review record/);
+    assert.match(html, /Net wt\. 750 g/);
+    assert.match(html, /Reviewer One/);
+    assert.match(html, /Reviewer Two/);
+    assert.match(html, /Evidence matches\./);
+    assert.match(html, /Request correction\./);
+    assert.match(html, /do not authorize printing/);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

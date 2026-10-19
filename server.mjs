@@ -3,7 +3,7 @@ import { createReadStream, existsSync, readFileSync } from 'node:fs';
 import { readFile,writeFile,mkdir,readdir,rename,rm,stat } from 'node:fs/promises';
 import { join,extname,basename,resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { randomUUID,randomBytes,createHash,timingSafeEqual } from 'node:crypto';
+import { randomUUID,randomBytes,createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { analyze,compareRevisions,tokenSequencePresent } from './lib/engine.mjs';
 import { geminiReview } from './lib/ai.mjs';
@@ -14,6 +14,9 @@ import { sealReview, verifyReviewSeal } from './lib/audit-signature.mjs';
 import { answerFindingQuestion } from './lib/finding-qa.mjs';
 import { publicFiles, createPublicFileSender } from './lib/public-files.mjs';
 import { buildSourceRevisionInputs } from './lib/source-revision-inputs.mjs';
+import { authenticateLegacyUser, authenticateTeamUser, parseTeamUsers } from './lib/team-auth.mjs';
+import { addFindingApproval, addFindingComment, canReviewFinding, canViewReview, setFindingAssignment } from './lib/team-review.mjs';
+import { verifyPersistentMount } from './lib/persistent-storage.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const sendPublicFile=createPublicFileSender(join(root,'public'));
@@ -25,6 +28,11 @@ for(const filename of ['.env.local','.env']){
 }
 const storage=resolve(process.env.PACKPROOF_DATA_DIR||join(root,'.packproof'));
 await mkdir(join(storage,'reviews'),{recursive:true,mode:0o700});await mkdir(join(storage,'cache'),{recursive:true,mode:0o700});
+const persistentStoragePath=process.env.PACKPROOF_PERSISTENT_STORAGE_PATH?resolve(process.env.PACKPROOF_PERSISTENT_STORAGE_PATH):'';
+const persistentStorageRequired=process.env.PACKPROOF_REQUIRE_PERSISTENT_STORAGE==='true';
+let persistentStorageReady=false;
+persistentStorageReady=await verifyPersistentMount(storage,persistentStoragePath);
+if(persistentStorageRequired&&!persistentStorageReady)throw new Error('PackSignal requires its configured persistent storage mount before starting.');
 const bundled=join(process.env.HOME||'','/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3');
 const python=process.env.PACKPROOF_PYTHON||(existsSync(bundled)?bundled:'python3');
 const port=Number(process.env.PORT||4173);const host=process.env.HOST||(process.env.NODE_ENV==='production'?'0.0.0.0':'127.0.0.1');
@@ -35,26 +43,45 @@ const allowedHosts=new Set([...['127.0.0.1','localhost'].map(name=>`${name}:${po
 if(publicOrigin){try{allowedHosts.add(new URL(publicOrigin).host);}catch{throw new Error('PACKPROOF_PUBLIC_ORIGIN must be an absolute origin such as https://example.onrender.com');}}
 const accessUser=process.env.PACKPROOF_ACCESS_USER||'judge';
 const accessPassword=process.env.PACKPROOF_ACCESS_PASSWORD||'';
-if(process.env.NODE_ENV==='production'&&process.env.PACKPROOF_REQUIRE_AUTH==='true'&&!accessPassword)throw new Error('Set PACKPROOF_ACCESS_PASSWORD before starting in production.');
-const expectedAuthDigest=createHash('sha256').update(`${accessUser}:${accessPassword}`).digest();
-function hasAccess(req){
-  if(!accessPassword)return true;
-  const header=req.headers.authorization||'';
-  const credentials=header.startsWith('Basic ')?Buffer.from(header.slice(6),'base64').toString('utf8'):'';
-  const digest=createHash('sha256').update(credentials).digest();
-  return timingSafeEqual(expectedAuthDigest,digest);
+const teamUsers=parseTeamUsers(process.env.PACKPROOF_TEAM_USERS||'');
+const teamEnabled=teamUsers.length>0;
+if(process.env.NODE_ENV==='production'&&process.env.PACKPROOF_REQUIRE_AUTH==='true'&&!teamEnabled&&!accessPassword)throw new Error('Set PACKPROOF_ACCESS_PASSWORD or configure named PACKPROOF_TEAM_USERS before starting in production.');
+if(process.env.NODE_ENV==='production'&&teamEnabled&&!persistentStorageReady)throw new Error('Named team reviews require the configured persistent storage mount.');
+function authenticate(req){
+  if(teamEnabled)return authenticateTeamUser(req.headers.authorization,teamUsers);
+  if(accessPassword)return authenticateLegacyUser(req.headers.authorization,accessUser,accessPassword);
+  if(process.env.NODE_ENV==='production'&&process.env.PACKPROOF_REQUIRE_AUTH==='true')return null;
+  return {id:'local-user',username:'local',displayName:'Local reviewer',role:'admin'};
 }
+const publicTeamUsers=teamUsers.map(({id,username,displayName,role})=>({id,username,displayName,role}));
 const csrf=randomBytes(24).toString('hex');
 let apiKeys=[...new Set(Array.from({length:5},(_,i)=>process.env['GEMINI_API_KEY'+(i?'_'+(i+1):'')]||'').map(key=>key.trim()).filter(Boolean))],keyCursor=0,model=process.env.GEMINI_MODEL||'gemini-3.8-flash';
-let queue=Promise.resolve();const jobs=new Set();
+let queue=Promise.resolve();const jobs=new Set(),reviewWriteQueues=new Map();
 const fail=(message,status=400)=>Object.assign(new Error(message),{status});
+const withReviewWriteLock=(id,operation)=>{
+  const previous=reviewWriteQueues.get(id)||Promise.resolve();
+  const current=previous.then(operation,operation);
+  const settled=current.then(()=>{},()=>{});
+  reviewWriteQueues.set(id,settled);
+  settled.then(()=>{if(reviewWriteQueues.get(id)===settled)reviewWriteQueues.delete(id);});
+  return current;
+};
 function dir(id){if(!/^[a-f0-9-]{36}$/.test(id))throw fail('Invalid review identifier.');return join(storage,'reviews',id);}
 const readReview=async id=>JSON.parse(await readFile(join(dir(id),'review.json'),'utf8'));
 const load=async id=>{const review=await readReview(id);refreshDependencies(review);return review;};
 async function save(r){const f=join(dir(r.id),'review.json'),tmp=f+'.'+randomUUID()+'.tmp';await writeFile(tmp,JSON.stringify(r,null,2),{mode:0o600});await rename(tmp,f);}
-const audit=(r,action,detail)=>r.audit.push({at:new Date().toISOString(),action,detail});
+const audit=(r,action,detail,actor=null)=>r.audit.push({at:new Date().toISOString(),action,detail,...(actor?{actorId:actor.id,actorName:actor.displayName}:{})});
 const clearSeal=r=>{delete r.signature;};
 const hashValue=value=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
+function presentReview(review,user){
+  const result=structuredClone(review);
+  result.findings||=[];
+  result.team||={createdBy:null,assignments:{},comments:[],approvals:[],assignmentHistory:[]};
+  result.team.comments=(result.team.comments||[]).map(comment=>({...comment,stale:!result.findings.some(f=>f.id===comment.findingId)||comment.dependencyHash!==findingDependencyFingerprint(result,result.findings.find(f=>f.id===comment.findingId))}));
+  result.team.approvals=(result.team.approvals||[]).map(approval=>{const finding=result.findings.find(f=>f.id===approval.findingId);return {...approval,stale:!finding||approval.dependencyHash!==findingDependencyFingerprint(result,finding)};});
+  result.teamAccess={canAssign:user.role==='admin',canContribute:user.role==='admin'||canViewReview(result,user),canReviewFindingIds:result.findings.filter(finding=>canReviewFinding(result,finding.id,user)).map(finding=>finding.id)};
+  return result;
+}
 function confirmationFingerprint(r,key){
   const sources=r.documents.filter(d=>d.role==='spec').map(d=>[d.id,d.sha256]);
   const artwork=r.documents.filter(d=>d.role==='artwork').map(d=>[d.id,d.sha256,d.pages?.map(p=>[p.number,p.method])]);
@@ -204,16 +231,18 @@ async function processReview(id){
   }catch(error){if(r){try{r=await load(id);}catch{}if(r.status==='ready'){clearSeal(r);r.aiStatus='unavailable';r.aiError=error.message;r.aiFailure={code:error.code||'AI_UNAVAILABLE',retryAt:error.retryAt||null};r.warnings.push('Background AI could not complete: '+error.message+' Local checks remain available.');audit(r,'ai_unavailable',error.message);}else{r.status='failed';r.error=error.message;r.progress='Review could not complete';audit(r,'analysis_failed',error.message);}await save(r);}}
   finally{jobs.delete(id);}
 }
-async function createReview(input){
+async function createReview(input,actor){
   if(input.options?.marketPreset!==undefined&&!['none','us','india','eu'].includes(input.options.marketPreset))throw fail('Unknown market preset.');
   if(jobs.size>=4)throw fail('Four reviews are already queued. Wait for one to finish.',429);
-  const r={id:randomUUID(),name:String(input.name||'Packaging review').slice(0,120),market:String(input.market||'Unspecified').slice(0,60),createdAt:new Date().toISOString(),status:'queued',progress:'Waiting to process',mode:input.mode==='local'?'local':'ai',options:{completeArtwork:input.options?.completeArtwork===true,sourceConfirmed:false,marketPreset:input.options?.marketPreset||'none',panelZones:{},...(Array.isArray(input.files)&&input.files.some(file=>file.role==='dieline')?{packageType:'carton',packageMappingConfirmed:false}:{})},files:[],documents:[],decisions:{},audit:[]};
+  const r={id:randomUUID(),name:String(input.name||'Packaging review').slice(0,120),market:String(input.market||'Unspecified').slice(0,60),createdAt:new Date().toISOString(),status:'queued',progress:'Waiting to process',mode:input.mode==='local'?'local':'ai',options:{completeArtwork:input.options?.completeArtwork===true,sourceConfirmed:false,marketPreset:input.options?.marketPreset||'none',panelZones:{},...(Array.isArray(input.files)&&input.files.some(file=>file.role==='dieline')?{packageType:'carton',packageMappingConfirmed:false}:{})},files:[],documents:[],decisions:{},audit:[],team:{createdBy:actor.id,createdByName:actor.displayName,assignments:{},comments:[],approvals:[],assignmentHistory:[]}};
   await mkdir(join(dir(r.id),'files'),{recursive:true,mode:0o700});await mkdir(join(dir(r.id),'rendered'),{mode:0o700});
   try{
     let files=input.files;
     if(input.parentId){
-      const previous=await load(input.parentId);if(previous.status!=='ready')throw fail('The previous review is not ready.');
+      if(teamEnabled&&actor.role!=='admin')throw fail('Only a workspace admin can create an artwork or source revision.',403);
+      const previous=await load(input.parentId);if(!canViewReview(previous,actor))throw fail('Review not found or not assigned to this account.',404);if(previous.status!=='ready')throw fail('The previous review is not ready.');
       r.parentId=previous.id;r.market=previous.market;r.sample=previous.sample;
+      r.team.assignments=structuredClone(previous.team?.assignments||{});r.team.assignmentHistory=structuredClone(previous.team?.assignmentHistory||[]);r.team.comments=structuredClone(previous.team?.comments||[]);r.team.approvals=structuredClone(previous.team?.approvals||[]);
       if(input.sourceRevision===true){
         r.revisionKind='sources';r.name=previous.name+' · source update';r.mode=input.mode==='local'?'local':'ai';r.options={...structuredClone(previous.options),marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none'};
         r.documents=structuredClone(previous.documents);
@@ -240,7 +269,7 @@ async function createReview(input){
       if(input.sample){if(!samples[input.sample])throw fail('Unknown sample.');r.sample=input.sample;r.name=input.sample==='organizer'?'Dancing Fish · Berry Crunch':input.sample==='clean'?'Fieldday · clean baseline':input.sample==='conflict'?'Fieldday · conflicting sources':input.sample==='signals'?'Fieldday · language and code signals':'Fieldday · artwork V1';r.market=input.sample==='organizer'?'United States':'Fictional company checklist';r.options.panelZones=sampleZones(input.sample);if(Object.keys(r.options.panelZones).length)r.options.panelZoneSource='authored synthetic sample geometry';files=await Promise.all(samples[input.sample].map(async([path,role])=>({name:basename(path),role,base64:(await readFile(join(root,path))).toString('base64')})));}
       r.files=await writeInputs(r,files);
     }
-    audit(r,'review_created',r.revisionKind==='sources'?'Updated source documents; artwork and confirmed geometry retained.':r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.');await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;
+    audit(r,'review_created',r.revisionKind==='sources'?'Updated source documents; artwork and confirmed geometry retained.':r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.',actor);await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;
   }catch(error){await rm(dir(r.id),{recursive:true,force:true});throw error;}
 }
 for(const id of await readdir(join(storage,'reviews'))){try{const r=await readReview(id);if(['queued','processing'].includes(r.status)){r.status='failed';r.error='The server stopped during processing. Create a new review to retry.';await save(r);}}catch{}}
@@ -255,24 +284,42 @@ const server=createServer(async(req,res)=>{
     if(req.headers.origin&&!allowedOrigins.has(req.headers.origin)&&!sameOrigin&&!req.headers.origin.endsWith('.onrender.com'))throw fail('Cross-origin access is disabled.',403);
     const path=decodeURIComponent(new URL(req.url,'http://localhost').pathname),method=req.method;
     if(path==='/healthz'&&method==='GET')return json(res,200,{ok:true});
-    if(!hasAccess(req)){
+    const actor=authenticate(req);
+    if(!actor){
       res.writeHead(401,{'WWW-Authenticate':'Basic realm="PackSignal demo", charset="UTF-8"','Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});
       res.end('Authentication required.');return;
     }
     if(!['GET','HEAD'].includes(req.method)&&req.headers['x-packproof-token']!==csrf)throw fail('Refresh the page to renew your request token.',403);
     if(publicFiles.has(path)&&['GET','HEAD'].includes(method))return await sendPublicFile(req,res,path);
     if(path==='/api/market-presets'&&method==='GET')return json(res,200,marketPresets);
-    if(path==='/api/status'&&method==='GET'){const aiUsage=geminiStatus(),inProgress=aiUsage.lastOutcome==='Request in progress'||aiUsage.lastOutcome.startsWith('Waiting before retry');const aiConnection=!apiKeys.length?'not_configured':inProgress?'running':aiUsage.lastOutcome==='Live request completed'?'verified':aiUsage.lastOutcome==='No live request yet'?'configured':'attention';return json(res,200,{csrf,aiConfigured:Boolean(apiKeys.length),aiConnection,model,aiUsage,queued:jobs.size,limits:{files:8,fileMB:15,totalMB:30,pdfPages:12},scope:'Private workspace or access-controlled hosted demo; human release decision required.'});}
-    if(path==='/api/reviews'&&method==='POST')return json(res,202,await createReview(await body(req)));
-    if(path==='/api/reviews'&&method==='GET'){const all=await Promise.all((await readdir(join(storage,'reviews'))).map(async id=>{try{const r=await readReview(id);return {id:r.id,name:r.name,createdAt:r.createdAt,finishedAt:r.finishedAt,status:r.status,counts:r.counts,engine:r.engine,sample:r.sample,parentId:r.parentId};}catch{return null;}}));return json(res,200,all.filter(Boolean).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
+    if(path==='/api/status'&&method==='GET'){const aiUsage=geminiStatus(),inProgress=aiUsage.lastOutcome==='Request in progress'||aiUsage.lastOutcome.startsWith('Waiting before retry');const aiConnection=!apiKeys.length?'not_configured':inProgress?'running':aiUsage.lastOutcome==='Live request completed'?'verified':aiUsage.lastOutcome==='No live request yet'?'configured':'attention';return json(res,200,{csrf,aiConfigured:Boolean(apiKeys.length),aiConnection,model,aiUsage,queued:jobs.size,limits:{files:8,fileMB:15,totalMB:30,pdfPages:12},team:{enabled:teamEnabled,currentUser:{id:actor.id,username:actor.username,displayName:actor.displayName,role:actor.role},members:publicTeamUsers},storage:{persistent:persistentStorageReady,required:persistentStorageRequired},security:{authenticated:teamEnabled||Boolean(accessPassword),required:process.env.PACKPROOF_REQUIRE_AUTH==='true',hosted:process.env.NODE_ENV==='production'},scope:'Private workspace or access-controlled hosted demo; human release decision required.'});}
+    if(path==='/api/reviews'&&method==='POST')return json(res,202,presentReview(await createReview(await body(req),actor),actor));
+    if(path==='/api/reviews'&&method==='GET'){const all=await Promise.all((await readdir(join(storage,'reviews'))).map(async id=>{try{const r=await readReview(id);if(!canViewReview(r,actor))return null;return {id:r.id,name:r.name,createdAt:r.createdAt,finishedAt:r.finishedAt,status:r.status,counts:r.counts,engine:r.engine,sample:r.sample,parentId:r.parentId,createdBy:r.team?.createdBy||null,assignmentCount:Object.values(r.team?.assignments||{}).filter(assignment=>assignment.reviewerIds?.includes(actor.id)).length};}catch{return null;}}));return json(res,200,all.filter(Boolean).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)));}
     const match=path.match(/^\/api\/reviews\/([a-f0-9-]{36})(?:\/(.*))?$/);
-    if(match){const id=match[1],action=match[2],r=await load(id);
-      if(!action&&method==='GET')return json(res,200,r);
+    if(match){const id=match[1],action=match[2],handle=async()=>{const r=await load(id);if(!canViewReview(r,actor))throw fail('Review not found or not assigned to this account.',404);
+      if(!action&&method==='GET')return json(res,200,presentReview(r,actor));
       if(action?.startsWith('images/')&&['GET','HEAD'].includes(method)){const name=action.slice(7);if(!r.documents.some(d=>d.pages.some(p=>p.image===name)))throw fail('Image not found.',404);return await sendFile(req,res,join(dir(id),'rendered',name));}
       if(action?.startsWith('files/')&&['GET','HEAD'].includes(method)){const f=r.files.find(f=>f.id===action.slice(6));if(!f)throw fail('File not found.',404);return await sendFile(req,res,join(dir(id),'files',f.disk),f.name);}
       if(r.status!=='ready')throw fail('Wait for this review to finish.',409);
-      if(action==='decisions'&&method==='POST'){const b=await body(req);const finding=r.findings.find(f=>f.id===b.findingId);if(!finding||!['open','acknowledged','accepted_exception','needs_changes'].includes(b.disposition))throw fail('Invalid reviewer decision.');if(typeof b.note!=='string'||b.note.trim().length<3||b.note.length>2000)throw fail('Add a decision note (3–2,000 characters).');r.decisions[b.findingId]={disposition:b.disposition,note:b.note.trim(),at:new Date().toISOString(),dependencyHash:findingDependencyFingerprint(r,finding)};clearSeal(r);audit(r,'reviewer_decision',`${b.findingId}: ${b.disposition} — ${b.note.trim()}`);await save(r);return json(res,200,r);}
+      if(['assignments','comments','approvals'].includes(action)&&method==='POST'){
+        if(!teamEnabled)throw fail('Team sign-off is disabled until named team accounts and persistent storage are configured.',409);
+        const b=await body(req);if(!b||typeof b!=='object'||Array.isArray(b))throw fail('Invalid team review request.');
+        const finding=r.findings.find(item=>item.id===b.findingId);if(!finding)throw fail('Finding not found.',404);
+        if(action==='assignments'){
+          if(actor.role!=='admin')throw fail('Only a workspace admin can assign findings.',403);
+          const changed=setFindingAssignment(r,finding.id,b.reviewerIds,actor,publicTeamUsers);
+          if(changed){clearSeal(r);const names=(r.team.assignments[finding.id].reviewerIds||[]).map(id=>publicTeamUsers.find(member=>member.id===id)?.displayName||id);audit(r,'finding_assigned',`${finding.title} assigned to ${names.join(', ')||'no reviewer'}.`,actor);await save(r);}
+          return json(res,200,presentReview(r,actor));
+        }
+        if(!canReviewFinding(r,finding.id,actor))throw fail('This finding is not assigned to your account.',403);
+        if(action==='comments'){
+          const comment=addFindingComment(r,finding,actor,b);comment.dependencyHash=findingDependencyFingerprint(r,finding);clearSeal(r);audit(r,'evidence_comment_added',`${finding.title}: reviewer comment anchored to ${comment.evidence?.name||'finding evidence'}.`,actor);await save(r);return json(res,200,presentReview(r,actor));
+        }
+        addFindingApproval(r,finding,actor,b,findingDependencyFingerprint(r,finding));clearSeal(r);audit(r,'independent_finding_signoff',`${finding.title}: ${b.outcome}.`,actor);await save(r);return json(res,200,presentReview(r,actor));
+      }
+      if(action==='decisions'&&method==='POST'){const b=await body(req);const finding=r.findings.find(f=>f.id===b.findingId);if(!finding||!['open','acknowledged','accepted_exception','needs_changes'].includes(b.disposition))throw fail('Invalid reviewer decision.');if(teamEnabled&&!canReviewFinding(r,finding.id,actor))throw fail('This finding is not assigned to your account.',403);if(typeof b.note!=='string'||b.note.trim().length<3||b.note.length>2000)throw fail('Add a decision note (3–2,000 characters).');r.decisions[b.findingId]={disposition:b.disposition,note:b.note.trim(),at:new Date().toISOString(),decidedBy:actor.id,reviewerName:actor.displayName,dependencyHash:findingDependencyFingerprint(r,finding)};clearSeal(r);audit(r,'reviewer_decision',`${b.findingId}: ${b.disposition} — ${b.note.trim()}`,actor);await save(r);return json(res,200,presentReview(r,actor));}
       if(action==='sources'&&method==='POST'){
+        if(teamEnabled&&actor.role!=='admin')throw fail('Only a workspace admin can change source and checklist confirmations.',403);
         const b=await body(req);if(typeof b.reason!=='string'||b.reason.trim().length<3||b.reason.length>2000)throw fail('Explain the source decision.');
         const priorConfirmations={};for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','packageMappingConfirmed','netQuantityConfirmed'])priorConfirmations[key]={value:r.options[key]===true,fingerprint:r.options.confirmationFingerprints?.[key]};
         if(b.marketPreset!==undefined){if(!['none','us','india','eu'].includes(b.marketPreset))throw fail('Unknown market preset.');r.options.marketPreset=b.marketPreset;}
@@ -295,11 +342,11 @@ const server=createServer(async(req,res)=>{
         }
         const decisionHashes=new Map(Object.entries(r.decisions).map(([findingId,decision])=>[findingId,decision.dependencyHash]));
         clearSeal(r);Object.assign(r,analyze(r));for(const [findingId,decision]of Object.entries(r.decisions)){const f=r.findings.find(f=>f.id===findingId);if(!f||!decisionHashes.get(findingId)||decisionHashes.get(findingId)!==findingDependencyFingerprint(r,f))decision.stale=true;}
-        if(r.parentId)r.revision=compareRevisions(await load(r.parentId),r);audit(r,'source_decision',b.reason.trim());r.audit.at(-1).options=structuredClone(r.options);await save(r);return json(res,200,r);
+        if(r.parentId)r.revision=compareRevisions(await load(r.parentId),r);audit(r,'source_decision',b.reason.trim(),actor);r.audit.at(-1).options=structuredClone(r.options);await save(r);return json(res,200,presentReview(r,actor));
       }
       if(action==='ask'&&method==='POST'){
         const b=await body(req);if(typeof b.question!=='string'||b.question.trim().length<3||b.question.length>1000)throw fail('Ask a focused question of 3–1,000 characters.');
-        const finding=r.findings.find(item=>item.id===b.findingId);if(!finding)throw fail('Finding not found.');if(!apiKeys.length)throw fail('Packaging intelligence is not configured on this server. Local checks and evidence remain available.');
+        const finding=r.findings.find(item=>item.id===b.findingId);if(!finding)throw fail('Finding not found.');if(teamEnabled&&!canReviewFinding(r,finding.id,actor))throw fail('This finding is not assigned to your account.',403);if(!apiKeys.length)throw fail('Packaging intelligence is not configured on this server. Local checks and evidence remain available.');
         let answer=null,lastError=null;
         for(let i=0;i<apiKeys.length;i++){
           const activeKey=apiKeys[(keyCursor+i)%apiKeys.length];
@@ -314,7 +361,7 @@ const server=createServer(async(req,res)=>{
           }
         }
         if(!answer&&lastError)throw lastError;
-        clearSeal(r);r.followUps||=[];r.followUps.push({findingId:finding.id,question:b.question.trim(),answer:answer.answer,evidenceUsed:answer.evidenceUsed,at:new Date().toISOString()});audit(r,'finding_question_answered',`Evidence-scoped AI answer returned for ${finding.id}.`);await save(r);return json(res,200,answer);
+        clearSeal(r);r.followUps||=[];r.followUps.push({findingId:finding.id,question:b.question.trim(),answer:answer.answer,evidenceUsed:answer.evidenceUsed,at:new Date().toISOString(),actorId:actor.id,actorName:actor.displayName});audit(r,'finding_question_answered',`Evidence-scoped AI answer returned for ${finding.id}.`,actor);await save(r);return json(res,200,answer);
       }
       if(action==='signature'&&method==='GET')return json(res,200,await verifyReviewSeal(r,storage));
       if(['report.html','report.json','report.pdf'].includes(action)&&method==='GET'){
@@ -324,9 +371,11 @@ const server=createServer(async(req,res)=>{
       if(action==='report.html'&&method==='GET'){const html=await createHtmlReport(r,dir(id));res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Content-Disposition':'attachment; filename="packsignal-report.html"','Cache-Control':'no-store'});res.end(html);return;}
       if(action==='report.json'&&method==='GET'){res.setHeader('Content-Disposition',`attachment; filename="packsignal-${id}.json"`);return json(res,200,r);}
       if(action==='report.pdf'&&method==='GET'){const output=join(dir(id),'report.pdf');await worker({action:'report',review:join(dir(id),'review.json'),output});return await sendFile(req,res,output,'packsignal-report.pdf');}
-    }
+    };
+    const writeRoute=method==='POST'||['report.html','report.json','report.pdf'].includes(action);
+    return await (writeRoute?withReviewWriteLock(id,handle):handle());}
     throw fail('Not found.',404);
-  }catch(error){if(!res.headersSent)json(res,error.code==='ENOENT'?404:error.status||500,{error:error.code==='ENOENT'?'File or review not found.':error.status?error.message:'The request could not complete. Try again.'});else res.destroy();}
+  }catch(error){if(process.env.NODE_ENV!=='production')console.error(error);if(!res.headersSent)json(res,error.code==='ENOENT'?404:error.status||500,{error:error.code==='ENOENT'?'File or review not found.':error.status?error.message:'The request could not complete. Try again.'});else res.destroy();}
 });
 server.requestTimeout=120000;server.headersTimeout=15000;
 server.on('error',error=>{

@@ -110,10 +110,26 @@ Useful commands:
 npm test                 # Node regression checks
 npm run evaluate         # 21 hand-authored synthetic expected outcomes
 npm run smoke            # Isolated organizer-file ingestion and signed export workflow
+npm run smoke-team       # Named-user access, assignment, evidence comments, and separate sign-offs
 npm run package          # Build the source submission ZIP
 ```
 
 The 21/21 result is a deterministic synthetic regression evaluation, not an independent benchmark, real-world accuracy score, or legal validation. The smoke workflow uses a temporary data directory and makes no external AI request.
+
+## Team review on a hosted workspace
+
+The hosted Render service is configured with a 1 GB disk mounted at `/var/data`. Startup verifies that mount before accepting requests. Review records use atomic file replacement and serialized updates so concurrent assignment, comment, approval, and decision changes are not silently overwritten on the single service instance.
+
+To enable individual identities, add `PACKPROOF_TEAM_USERS` in the Render environment settings as a secret JSON array with at least one `admin` and one `reviewer`. Each entry has `username`, `displayName`, `role`, and a unique password of at least 12 characters. Example shape:
+
+```json
+[
+  {"username":"owner","displayName":"Workspace owner","role":"admin","password":"<unique secret>"},
+  {"username":"reviewer1","displayName":"Reviewer One","role":"reviewer","password":"<different unique secret>"}
+]
+```
+
+Set `PACKPROOF_REQUIRE_AUTH=true` in the same environment update. Named accounts replace the shared demo login when present. Admins can see workspace reviews and assign findings; reviewers can see reviews they created or findings assigned to them, and can comment on linked evidence and record their own approval, change request, or abstention. Comments and sign-offs are append-only and tied to the reviewer identity. Team actions are disabled until named accounts are configured, so a shared password is never presented as separate reviewer identities. Do not scale this filesystem-backed service to multiple instances; this prototype does not use a shared transactional database or multi-tenant isolation.
 
 ## What is in the repository
 
@@ -138,7 +154,7 @@ The 21/21 result is a deterministic synthetic regression evaluation, not an inde
 - OCR and AI transcription can miss or misread text. A failed extraction alone is never treated as proof that copy is absent.
 - Add an optional PDF/image or ASCII DXF dieline to a new review. DXF preserves supported line and polyline geometry; explicit layer or linetype names can show cut, crease, glue, and perforation cues, and uniquely labeled closed regions can suggest face crops. PDF/image inputs still provide only text-label hints and unclassified long-line candidates. Inspect the source, adjust the artwork crops, and confirm the map. Carton, pouch, bottle-label, and sleeve previews remain illustrative contexts, not CAD solids or fold simulations.
 - The organizer sample contains draft/reconstructed content and nutrition ambiguity. PackSignal reports those limits; it does not label the supplied artwork legally wrong.
-- This is an independent hackathon prototype, not an Esko product or endorsement. It is not a multi-tenant production service.
+- This is an independent hackathon prototype, not an Esko product or endorsement. Hosted team review is single-workspace, single-instance collaboration; the persistent disk is not a backup or a transactional multi-tenant database.
 
 See [`submission/KNOWN_LIMITS.md`](submission/KNOWN_LIMITS.md) before using it outside a controlled demonstration.
 

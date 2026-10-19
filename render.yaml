@@ -14,9 +14,17 @@ services:
     envVars:
       - key: PACKPROOF_DATA_DIR
         value: /var/data
+      - key: PACKPROOF_PERSISTENT_STORAGE_PATH
+        value: /var/data
+      - key: PACKPROOF_REQUIRE_PERSISTENT_STORAGE
+        value: "true"
+      - key: PACKPROOF_TEAM_USERS
+        sync: false
       - key: PACKPROOF_ACCESS_USER
         value: judge
       - key: PACKPROOF_ACCESS_PASSWORD
+        sync: false
+      - key: PACKPROOF_REQUIRE_AUTH
         sync: false
       - key: PACKPROOF_PUBLIC_ORIGIN
         sync: false

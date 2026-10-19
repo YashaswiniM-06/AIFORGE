@@ -4,6 +4,6 @@
   "description": "Evidence-backed packaging artwork review for Esko AIForge",
   "private": true,
   "type": "module",
-  "scripts": {"start":"node server.mjs","doctor":"node scripts/doctor.mjs","test":"node --test","evaluate":"node scripts/evaluate-engine.mjs","smoke":"node scripts/smoke.mjs","package":"node scripts/package.mjs"},
+  "scripts": {"start":"node server.mjs","doctor":"node scripts/doctor.mjs","test":"node --test","evaluate":"node scripts/evaluate-engine.mjs","smoke":"node scripts/smoke.mjs","smoke-team":"node scripts/team-smoke.mjs","package":"node scripts/package.mjs"},
   "engines": {"node": ">=24"}
 }
