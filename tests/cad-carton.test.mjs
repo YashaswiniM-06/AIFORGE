@@ -58,6 +58,14 @@ test('exports a six-face OBJ outer shell in DXF millimeter dimensions with an ho
   assert.equal((obj.match(/^f /gm) || []).length, 6);
   assert.match(obj, /^v -25 0 15$/m);
   assert.match(obj, /^v 25 100 -15$/m);
+  const vertices = obj.split('\n').filter(line => line.startsWith('v ')).map(line => line.slice(2).split(' ').map(Number));
+  const faces = obj.split('\n').filter(line => line.startsWith('f ')).map(line => line.slice(2).split(' ').map(index => vertices[Number(index) - 1]));
+  for (const [a, b, c, d] of faces) {
+    const u = b.map((value, i) => value - a[i]), v = c.map((value, i) => value - a[i]);
+    const normal = [u[1] * v[2] - u[2] * v[1], u[2] * v[0] - u[0] * v[2], u[0] * v[1] - u[1] * v[0]];
+    const center = [a, b, c, d].reduce((sum, point) => sum.map((value, i) => value + point[i] / 4), [0, 0, 0]);
+    assert.ok(normal.reduce((sum, value, i) => sum + value * (center[i] - [0, 50, 0][i]), 0) > 0, 'each shell face normal points outward');
+  }
   assert.throws(() => cartonShellObj({ ok: false }), /validated DXF/);
 });
 
