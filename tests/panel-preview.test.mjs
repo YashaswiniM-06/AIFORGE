@@ -83,7 +83,7 @@ test('unlabelled video stills offer explicit face mapping without silently confi
   ];
   const html=panelZoneMapper(r);
   assert.match(html,/Assign video frames to package faces/);
-  assert.match(html,/Unlabelled video frames do not reveal their orientation automatically/);
+  assert.match(html,/you must confirm the orientation and crop/);
   assert.match(html,/data-capture-map-face="1"/);
   assert.match(html,/data-capture-map-page="2"/);
   assert.match(html,/data-package-confirm[^>]*disabled/);
@@ -91,6 +91,31 @@ test('unlabelled video stills offer explicit face mapping without silently confi
   const preview=workbenchArtwork(r,null,{mode:'3d'});
   assert.match(preview,/2 video frames · assign faces/);
   assert.match(preview,/Video stills are not orientation-labeled/);
+  assert.match(preview,/data-angle="0" data-tilt="-7" data-reset-angle="0"/,'unassigned camera reviews open and reset to the front preview');
+});
+
+test('AI face suggestions improve camera previews but remain unconfirmed crops',()=>{
+  const r=review();delete r.sample;
+  r.documents[0].pages.push({number:3,width:900,height:1200,image:'page-3.png'});
+  r.options.captureFaces=[1,2,3].map(page=>({page,face:'unassigned',box:[0,0,1,1]}));
+  r.ai={faceSuggestions:[
+    {page:1,face:'front',reason:'The product name and brand face the camera.'},
+    {page:2,face:'back',reason:'The nutrition panel is visible.'},
+    {page:3,face:'left',reason:'Ingredients copy appears on the narrow side.'},
+  ]};
+  assert.deepEqual(Object.keys(captureFaceSuggestions(r)),['front','back','left']);
+  const preview=workbenchArtwork(r,null,{mode:'3d'});
+  assert.match(preview,/3 AI face suggestions · unconfirmed/);
+  assert.match(preview,/AI-suggested face preview only/);
+  assert.match(preview,/Suggestions do not establish folds or dimensions/);
+  assert.match(preview,/data-geometry-source="illustrative"/);
+  assert.doesNotMatch(preview,/data-cad-export/);
+  const mapper=panelZoneMapper(r);
+  assert.match(mapper,/AI suggests Front/);
+  assert.match(mapper,/Use suggested faces as starting crops/);
+  assert.match(mapper,/Vision suggested this as the front panel because The product name and brand face the camera/);
+  assert.match(mapper,/data-package-confirm[^>]*disabled/);
+  assert.doesNotMatch(mapper,/data-package-confirm checked/);
 });
 
 test('camera-only face mapper permits package selection and confirmation without a dieline',()=>{
@@ -99,7 +124,7 @@ test('camera-only face mapper permits package selection and confirmation without
   const empty=panelZoneMapper(r);
   assert.match(empty,/PHOTO & ARTWORK PACKAGE PREVIEW/);
   assert.match(empty,/name="packageType"/);
-  assert.match(empty,/Use labelled photos as starting crops/);
+  assert.match(empty,/Use suggested faces as starting crops/);
   assert.match(empty,/data-zone-page-use/);
   assert.match(empty,/data-package-confirm[^>]*disabled/);
   r.options.panelZones.front={page:1,box:[.1,.1,.8,.9]};

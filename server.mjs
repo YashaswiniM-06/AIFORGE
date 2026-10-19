@@ -204,8 +204,8 @@ async function processReview(id){
         clearSeal(r);r.aiStatus='unavailable';r.aiError='Packaging intelligence is not configured on this server. Local extraction and exact checks are available.';r.aiFailure={code:'AI_NOT_CONFIGURED',retryAt:null};r.warnings.push('Multimodal intelligence was not run because no server-side API key is configured. Local results are available.');audit(r,'ai_unavailable',r.aiError);await save(r);
       }else{
         r.aiStatus='running';r.progress='Local checks are ready; Packaging intelligence is analyzing sources in the background';await save(r);
-        const cacheId=createHash('sha256').update(JSON.stringify({version:6,model,docs:r.documents.map(d=>[d.sha256,d.role,d.name])})).digest('hex');const cache=join(storage,'cache',cacheId+'.json');
-        const cacheHit=existsSync(cache),canonical={documents:r.documents.map((d,index)=>({...d,id:'source-'+index}))};
+        const cacheId=createHash('sha256').update(JSON.stringify({version:7,model,docs:r.documents.map(d=>[d.sha256,d.role,d.name])})).digest('hex');const cache=join(storage,'cache',cacheId+'.json');
+        const cacheHit=existsSync(cache),canonical={documents:r.documents.map((d,index)=>({...d,id:'source-'+index})),options:structuredClone(r.options)};
         try{
           let ai=null,lastError=null;
           if(cacheHit){
@@ -232,7 +232,7 @@ async function processReview(id){
           // Another request can record a reviewer decision while Gemini is running.
           // Reload before applying AI output so those decisions and source choices survive.
           r=await load(id);r.ai=structuredClone(ai);
-          for(const field of ['facts','rules','transcriptions','sentPages','unverifiedPages','omittedPages'])r.ai[field]=r.ai[field].map(item=>{
+          for(const field of ['facts','rules','transcriptions','faceSuggestions','sentPages','unverifiedPages','omittedPages'])r.ai[field]=r.ai[field].map(item=>{
             const index=canonical.documents.findIndex(d=>d.id===item.documentId);return index<0?null:{...item,documentId:r.documents[index].id};
           }).filter(Boolean);
           r.ai.transport={...r.ai.transport,cacheHit,...(cacheHit?{attempts:0}:{})};
@@ -323,6 +323,16 @@ const server=createServer(async(req,res)=>{
       if(!action&&method==='GET')return json(res,200,presentReview(r,actor));
       if(action?.startsWith('images/')&&['GET','HEAD'].includes(method)){const name=action.slice(7);if(!r.documents.some(d=>d.pages.some(p=>p.image===name)))throw fail('Image not found.',404);return await sendFile(req,res,join(dir(id),'rendered',name));}
       if(action?.startsWith('files/')&&['GET','HEAD'].includes(method)){const f=r.files.find(f=>f.id===action.slice(6));if(!f)throw fail('File not found.',404);return await sendFile(req,res,join(dir(id),'files',f.disk),f.name);}
+      if(action==='retry-ai'&&method==='POST'){
+        if(r.status!=='ready')throw fail('Wait for this review to finish.',409);
+        if(r.mode!=='ai')throw fail('This review used local-only analysis and has no image-reading request to retry.',409);
+        if(r.aiStatus!=='unavailable')throw fail('Image reading can only be retried after an unsuccessful request.',409);
+        if(!apiKeys.length)throw fail('Image reading is not configured on this server.',503);
+        if(jobs.has(id))throw fail('This review is already queued for processing.',409);
+        if(jobs.size>=4)throw fail('Four reviews are already queued. Wait for one to finish.',429);
+        r.aiRetryCount=(r.aiRetryCount||0)+1;if(r.aiRetryCount>3)throw fail('This review has reached its three retry limit. Create a new review if you need another attempt.',429);
+        r.status='queued';r.aiStatus='pending';r.progress='Retrying artwork reading and comparisons';delete r.aiError;delete r.aiFailure;clearSeal(r);audit(r,'ai_retry_queued','Reviewer requested another artwork image-reading attempt.',actor);await save(r);jobs.add(id);queue=queue.then(()=>processReview(id)).catch(()=>{});return json(res,202,presentReview(r,actor));
+      }
       if(r.status!=='ready')throw fail('Wait for this review to finish.',409);
       if(['assignments','comments','approvals'].includes(action)&&method==='POST'){
         if(!teamEnabled)throw fail('Team sign-off is disabled until named team accounts and persistent storage are configured.',409);

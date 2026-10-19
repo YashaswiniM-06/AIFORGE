@@ -40,6 +40,24 @@ test('artwork-only image review remains inspectable and explicitly requests refe
   assert.deepEqual(input,before,'The original camera pages must remain unchanged.');
 });
 
+test('groups image-only comparisons while artwork text is unavailable instead of reporting every value as missing',()=>{
+  const data={product:{brand:'Mori Meadow',name:'Whole Milk',net_quantity:{value:946,unit:'mL'},ingredients:'Whole milk, Vitamin D3.',storage_statement:'Keep refrigerated.'}};
+  const text=JSON.stringify(data);
+  const art={id:'art',name:'camera-capture.pdf',role:'artwork',text:'',lines:[],cells:[],pages:[1,2,3].map(number=>({number,width:960,height:1280,image:`page-${number}.png`,text:'',method:'vision_needed',codes:[]}))};
+  const spec={id:'spec',name:'product-specification.json',role:'spec',text,data,lines:[],cells:[],pages:[]};
+  const result=analyze({documents:[art,spec],options:{},decisions:{},audit:[]});
+  const unread=result.findings.find(item=>item.method==='artwork_readability');
+  assert.equal(result.counts.unable,1,'one shared extraction gap replaces repeated false-negative rows');
+  assert.equal(unread.blockedChecks.length,5);
+  assert.match(unread.explanation,/not been marked as missing or mismatched/);
+  assert.deepEqual(unread.evidence.filter(item=>item.role==='artwork').map(item=>item.page),[1,2,3]);
+  assert.equal(result.findings.some(item=>item.method==='exact_comparison'),false);
+  const readable=structuredClone(art);readable.text='Mori Meadow\nWhole Milk\n946 mL\nWhole milk, Vitamin D3.\nKeep refrigerated.';readable.pages.forEach(page=>{page.method='ai_transcription';page.text=readable.text;});
+  const resumed=analyze({documents:[readable,spec],options:{},decisions:{},audit:[]});
+  assert.equal(resumed.findings.some(item=>item.method==='artwork_readability'),false);
+  assert.equal(resumed.findings.some(item=>item.method==='exact_comparison'&&item.title==='Brand'&&item.status==='review'),true,'readable transcriptions restore normal field comparisons and retain human confirmation');
+});
+
 test('transcribed artwork alone yields observed signals but never product-reference matches',()=>{
   const text='MEADOW MILK\nNET QUANTITY 1 L\nNo Added Sugar\nIngredientes: leche\nConservar refrigerado';
   const art={id:'art',name:'camera.pdf',role:'artwork',text,lines:text.split('\n').map(text=>({text,page:1,box:null})),cells:[],pages:[

@@ -68,6 +68,29 @@ try {
   assert.equal(status.limits.mediaMB, 30);
   assert.equal(status.limits.videoSeconds, 120);
 
+  const retryReview = await json(await fetch(`${base}/api/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({ name: 'Image-reading retry smoke test', mode: 'ai', files: [
+      { name: 'camera.png', role: 'artwork', base64: lineArtDieline },
+    ] }),
+  }));
+  const retryDeadline = Date.now() + 30_000;
+  let retryResult;
+  while (Date.now() < retryDeadline) {
+    retryResult = await json(await fetch(`${base}/api/reviews/${retryReview.id}`));
+    if (retryResult.status === 'ready' || retryResult.status === 'failed') break;
+    await new Promise(resolve => setTimeout(resolve, 200));
+  }
+  assert.equal(retryResult?.status, 'ready', retryResult?.error || 'Image-reading retry review did not finish.');
+  assert.equal(retryResult.aiFailure?.code, 'AI_NOT_CONFIGURED');
+  const unavailableRetry = await fetch(`${base}/api/reviews/${retryReview.id}/retry-ai`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({}),
+  });
+  assert.equal(unavailableRetry.status, 503, 'The retry route must give a clear response when no server-side AI key is configured.');
+
   const home = await fetch(`${base}/`);
   assert.equal(home.status, 200);
   assert.match(await home.text(), /PackSignal/);

@@ -141,6 +141,7 @@ test('existing Fieldday sample preview geometry stays unchanged',()=>{
   assert.match(html,/carton-face carton-left preview-only/);
   assert.match(html,/carton-face carton-right preview-only/);
   assert.match(html,/Source artwork preview/);
+  assert.match(html,/data-reset-angle="-28"/,'Fieldday keeps its established turntable reset behavior');
   assert.deepEqual(sample,before,'the locked sample remains untouched');
 });
 
@@ -182,6 +183,7 @@ test('Dancing Fish keeps its established artwork crops and illustrative carton d
     right:{page:1,box:[.834,.375,.993,.786]},
   });
   assert.match(html,/--carton-w:162px;--carton-h:163px;--carton-d:88px/);
+  assert.match(html,/data-reset-angle="-28"/,'Dancing Fish keeps its established turntable reset behavior');
   assert.match(html,/src="\/api\/reviews\/dancing-fish-geometry-lock\/images\/dancing-fish-source.png"/);
   assert.deepEqual(sample,before,'the locked sample geometry and review data remain unchanged');
 });

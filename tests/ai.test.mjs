@@ -24,7 +24,7 @@ async function makeReview(){
 const pageLabels=request=>request.contents[0].parts.filter(part=>typeof part.text==='string'&&part.text.startsWith('Image: ')).map(part=>{
   const match=part.text.match(/documentId=([^,]+), page=(\d+)/);return {documentId:match[1],page:Number(match[2])};
 });
-const transcriptionPayload=(pages,observations=[])=>({facts:[],rules:[],observations,transcriptions:pages.map(item=>({...item,text:`Visible copy on page ${item.page}`}))});
+const transcriptionPayload=(pages,observations=[],faceSuggestions=[])=>({facts:[],rules:[],observations,transcriptions:pages.map(item=>({...item,text:`Visible copy on page ${item.page}`})),faceSuggestions});
 
 test('sends all four artwork pages in bounded image batches and combines transcripts',async()=>{
   const {directory,review}=await makeReview();const requests=[];
@@ -64,6 +64,25 @@ test('keeps structural dielines out of product-artwork vision requests',async()=
     const serialized=JSON.stringify(request);
     assert.doesNotMatch(serialized,/die-1|carton-dieline|FRONT PANEL|dieline-p1/);
     assert.equal(result.imagePagesSent,4,'Only product artwork pages enter the visual transcription pass.');
+  }finally{await rm(directory,{recursive:true,force:true});}
+});
+
+test('returns only valid face suggestions tied to submitted artwork pages',async()=>{
+  const {directory,review}=await makeReview();review.documents[0].pages=review.documents[0].pages.slice(0,2);review.options={captureFaces:[{page:1,face:'unassigned',box:[0,0,1,1]},{page:2,face:'unassigned',box:[0,0,1,1]}]};let request;
+  try{
+    const result=await geminiReview(review,directory,'mock-key','gemini-test',async(_url,options)=>{
+      request=JSON.parse(options.body);
+      const pages=pageLabels(request);
+      return success(transcriptionPayload(pages,[],[
+        {documentId:'art-1',page:1,face:'front',reason:'Brand and product name face the camera.'},
+        {documentId:'art-1',page:2,face:'back',reason:'Nutrition panel is visible.'},
+        {documentId:'art-1',page:99,face:'left',reason:'Page was not sent.'},
+        {documentId:'art-1',page:1,face:'sideways',reason:'Unsupported face.'},
+      ]));
+    });
+    assert.deepEqual(result.faceSuggestions.map(item=>[item.page,item.face]),[[1,'front'],[2,'back']]);
+    assert.match(request.generationConfig.responseJsonSchema.properties.faceSuggestions.items.properties.face.enum.join(','),/front.*back/);
+    assert.match(request.contents[0].parts[0].text,/unassigned/,'the model receives context that these are unlabelled capture frames');
   }finally{await rm(directory,{recursive:true,force:true});}
 });
 
