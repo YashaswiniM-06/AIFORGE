@@ -6,20 +6,52 @@ logging.disable(logging.CRITICAL)
 MAX_PAGES = 12
 
 def scan_codes(image):
-    """Return type/location only. Payloads are deliberately never stored or followed."""
+    """Return type/location and an isolated GTIN, never arbitrary barcode payloads."""
     try:
         import zxingcpp
         width,height=image.size; found=[]
-        for result in zxingcpp.read_barcodes(image):
-            if not result.valid: continue
+        for result in zxingcpp.read_barcodes(image,return_errors=True):
+            format_name=getattr(result.format,'name',str(result.format))
+            # A decoded EAN/UPC value can still have a bad check digit. Keep it
+            # long enough for the review engine to report that defect. For
+            # other symbologies, preserve the old decoder-validity gate.
+            decoded=getattr(result,'text','') or ''
+            candidate=gtin_from_payload(decoded,format_name)
+            if not result.valid and not candidate: continue
             points=[result.position.top_left,result.position.top_right,result.position.bottom_left,result.position.bottom_right]
             xs=[point.x for point in points]; ys=[point.y for point in points]
-            found.append(dict(format=getattr(result.format,'name',str(result.format)),box=[max(0,min(1,min(xs)/width)),max(0,min(1,min(ys)/height)),max(0,min(1,max(xs)/width)),max(0,min(1,max(ys)/height))]))
+            item=dict(format=format_name,box=[max(0,min(1,min(xs)/width)),max(0,min(1,min(ys)/height)),max(0,min(1,max(xs)/width)),max(0,min(1,max(ys)/height))])
+            if candidate:item['gtin']=candidate
+            found.append(item)
         return found, None
     except ImportError:
         return [], 'Local barcode scanner is unavailable; code presence was not verified.'
     except Exception:
         return [], 'Local barcode scanner could not read this rendered page; code presence remains unverified.'
+
+def gtin_from_payload(payload, format_name):
+    """Extract only a GTIN-shaped value from known barcode formats or GS1 AI 01."""
+    value=str(payload or '').strip()
+    # GS1 AI 01 explicitly identifies the following 14 digits as a GTIN.
+    gs1=re.search(r'(?:\(01\)|\]C101|\]d201|\]Q301|(?:^|/)01/|^01)(\d{14})(?!\d)',value,re.I)
+    if gs1:return gs1.group(1)
+    fmt=re.sub(r'[^a-z0-9]','',str(format_name or '').lower())
+    digits=re.sub(r'[\s-]','',value)
+    if not digits.isdigit():return None
+    if fmt in ('upce','upce0','upce1') and len(digits)==8:
+        ns,a,b,c,d,e,last,check=digits
+        if last in '012':upc_a=ns+a+b+last+'0000'+c+d+e+check
+        elif last=='3':upc_a=ns+a+b+c+'00000'+d+e+check
+        elif last=='4':upc_a=ns+a+b+c+d+'00000'+e+check
+        else:upc_a=ns+a+b+c+d+e+'0000'+last+check
+        return upc_a
+    # ZXing-C++ can normalize UPC-A / UPC-E to the EAN-13 representation by
+    # adding a leading zero; accept that canonical form as well as native UPC-E.
+    if fmt in ('ean8','ean13','upca','upce','itf','itf14','databar','databarexpanded','databaromni','databarstacked') and len(digits) in (8,12,13,14):
+        return digits
+    # Some scanner builds expose GTIN-14 symbols under a more specific ITF name.
+    if fmt.startswith('itf') and len(digits)==14:return digits
+    return None
 
 def detect_structural_edges(image):
     """Suggest long straight dieline strokes from a rendered page, without classifying cut vs fold."""
@@ -291,7 +323,7 @@ def extract(path, role, outdir, artifact_id, name):
                 for cell in row:
                     if cell.value is not None:
                         value=str(cell.value)
-                        doc['cells'].append(dict(sheet=sheet.title,cell=cell.coordinate,row=cell.row,col=cell.column,value=value))
+                        doc['cells'].append(dict(sheet=sheet.title,cell=cell.coordinate,row=cell.row,col=cell.column,value=value,numberFormat=cell.number_format))
         wb.close()
         doc['text']='\n'.join(f"{c['sheet']}!{c['cell']}: {c['value']}" for c in doc['cells'])
         doc['warnings'].append('Spreadsheet formulas use their saved values; formulas, macros, and external links are not executed.')

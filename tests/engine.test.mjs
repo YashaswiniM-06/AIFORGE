@@ -7,6 +7,75 @@ import { analyze, compareRevisions, equalQuantity, extractFacts, normal, quantit
 import { boxInsideZone, estimatedHeightMm, nutritionSanityFacts, textHasVisualAllergenCue } from '../lib/prepress.mjs';
 import { reviewSealProof, sealReview, verifyPortableSealProof, verifyReviewSeal } from '../lib/audit-signature.mjs';
 import { marketFindings } from '../lib/market-presets.mjs';
+import { canonicalGtin, hasValidGtinCheckDigit, suppliedGtinCandidates } from '../lib/gtin.mjs';
+import { signalFindings } from '../lib/signals.mjs';
+
+function gtinFromPrefix(prefix){
+  const body=String(prefix);let sum=0,weight=3;
+  for(let index=body.length-1;index>=0;index--){sum+=Number(body[index])*weight;weight=weight===3?1:3;}
+  return body+String((10-(sum%10))%10);
+}
+
+test('validates GTIN-8, GTIN-12, GTIN-13 and GTIN-14 check digits and normalizes equivalent zero padding',()=>{
+  for(const value of ['96385074','036000291452','4006381333931','10012345000017'])assert.equal(hasValidGtinCheckDigit(value),true,value);
+  assert.equal(hasValidGtinCheckDigit('4006381333932'),false);
+  assert.equal(hasValidGtinCheckDigit('1234567'),false);
+  assert.equal(canonicalGtin('036000291452'),canonicalGtin('00036000291452'));
+});
+
+test('finds explicit product-record GTIN fields and labeled spreadsheet identifiers only',()=>{
+  const spec={id:'spec',name:'product.json',role:'spec',data:{product:{gtin:'036000291452',sku:'123456789012'}},lines:[],cells:[]};
+  const candidates=suppliedGtinCandidates([spec]);
+  assert.deepEqual(candidates.map(item=>item.value),['036000291452']);
+  const table={id:'table',name:'catalog.xlsx',role:'spec',data:null,lines:[],cells:[
+    {sheet:'Catalog',cell:'A1',row:1,col:1,value:'Product'},
+    {sheet:'Catalog',cell:'B1',row:1,col:2,value:'GTIN-13'},
+    {sheet:'Catalog',cell:'A2',row:2,col:1,value:'Oat drink'},
+    {sheet:'Catalog',cell:'B2',row:2,col:2,value:'4006381333931'},
+  ]};
+  assert.ok(suppliedGtinCandidates([table]).some(item=>item.value==='4006381333931'&&item.location==='Catalog!B2'));
+  const numeric={id:'numeric',name:'numeric.xlsx',role:'spec',data:null,lines:[],cells:[
+    {sheet:'Catalog',cell:'A1',row:1,col:1,value:'UPC'},
+    {sheet:'Catalog',cell:'A2',row:2,col:1,value:36000291452,numberFormat:'000000000000'},
+  ]};
+  assert.ok(suppliedGtinCandidates([numeric]).some(item=>item.value==='036000291452'));
+});
+
+test('matches a valid decoded GTIN to an explicitly supplied product record and retains human checks',()=>{
+  const gtin='036000291452';
+  const review={documents:[
+    {id:'art',name:'artwork.pdf',role:'artwork',text:'',pages:[{number:1,codes:[{format:'UPCA',gtin,box:[.2,.3,.4,.5]}]}]},
+    {id:'spec',name:'product.json',role:'spec',data:{product:{gtin}},lines:[],cells:[]},
+  ]};
+  const findings=signalFindings(review);
+  const match=findings.find(item=>item.method==='gtin_record_check');
+  assert.equal(match.status,'match');
+  assert.match(match.explanation,/print quality, legal acceptability/);
+  assert.equal(findings.find(item=>item.method==='barcode_human_review').status,'review');
+});
+
+test('flags invalid decoded check digits and valid product-record mismatches',()=>{
+  const makeReview=(decoded,source)=>({documents:[
+    {id:'art',name:'artwork.pdf',role:'artwork',text:'',pages:[{number:1,codes:[{format:'EAN13',gtin:decoded}]}]},
+    {id:'spec',name:'product.json',role:'spec',data:{product:{ean:source}},lines:[],cells:[]},
+  ]});
+  const invalid=signalFindings(makeReview('4006381333932','4006381333931')).find(item=>item.method==='gtin_record_check');
+  assert.equal(invalid.status,'issue');
+  assert.match(invalid.title,/invalid check digit/i);
+  const mismatch=signalFindings(makeReview('4006381333931',gtinFromPrefix('400638133394'))).find(item=>item.method==='gtin_record_check');
+  assert.equal(mismatch.status,'issue');
+  assert.equal(mismatch.title,'Decoded GTIN differs from product record');
+});
+
+test('keeps missing or conflicting product GTINs in human review and does not imply print/legal approval',()=>{
+  const review={documents:[
+    {id:'art',name:'artwork.pdf',role:'artwork',text:'',pages:[{number:1,codes:[{format:'QRCode',gtin:'4006381333931'}]}]},
+    {id:'spec',name:'product.json',role:'spec',data:{product:{gtin:gtinFromPrefix('400638133394'),barcode:gtinFromPrefix('400638133395')}},lines:[],cells:[]},
+  ]};
+  const findings=signalFindings(review);
+  assert.equal(findings.find(item=>item.method==='gtin_record_check').status,'review');
+  assert.equal(findings.find(item=>item.method==='barcode_human_review').status,'review');
+});
 
 test('converts kilograms to grams for package quantities', () => {
   assert.deepEqual(quantity('1.25 kg'), { value: 1250, dimension: 'mass' });

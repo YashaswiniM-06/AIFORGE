@@ -89,7 +89,7 @@ flowchart LR
 - **Source conflict handling:** conflicting values and draft sources stay visible until a reviewer resolves them.
 - **Revision regression checks:** compare versions and rerun the supported checklist, so fixing one problem does not hide a newly introduced one.
 - **Signed exports:** export a portable HTML, PDF, or JSON review record. HTML/JSON include an Ed25519 integrity proof that can be checked offline.
-- **Useful prepress context:** reviewer-drawn panel zones, text-height screening, nutrition plausibility prompts, and barcode/QR type-and-location signals support inspection without claiming print-quality certification.
+- **Useful prepress context:** reviewer-drawn panel zones, text-height screening, nutrition plausibility prompts, and barcode/QR signals support inspection. When the local scanner decodes a GTIN, PackSignal checks its GS1 Mod-10 check digit and compares it with explicit GTIN/EAN/UPC identifiers in the supplied product specification. Print quality, legal acceptability, and retail assignment remain human checks; a match is not a certification.
 
 ## Run it locally
 
