@@ -188,7 +188,10 @@ function faceEvidenceBoxes(review,zone,selectedFindingId,activeEvidenceIndex=0){
   }
   return boxes.join('');
 }
-function foldedDimensions(review,zones){
+function foldedDimensions(review,zones,type='carton'){
+  if(type==='pouch')return {width:202,height:272,depth:54,measured:Boolean(zones.left?.box||zones.right?.box)};
+  if(type==='bottle_label')return {width:164,height:260,depth:110,measured:Boolean(zones.left?.box||zones.right?.box)};
+  if(type==='sleeve')return {width:238,height:190,depth:68,measured:Boolean(zones.left?.box||zones.right?.box)};
   const front=zones.front,side=zones.right||zones.left,frontPage=front&&artwork(review)?.pages?.find(p=>p.number===front.page),sidePage=side&&artwork(review)?.pages?.find(p=>p.number===side.page);
   if(!front?.box||!frontPage)return {width:198,height:260,depth:58,measured:false};
   const fw=(front.box[2]-front.box[0])*frontPage.width,fh=(front.box[3]-front.box[1])*frontPage.height;
@@ -205,8 +208,12 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   const selected=artworkEvidence.find(({index})=>index===activeEvidenceIndex)||artworkEvidence[0];
   const pageOptions=[...new Set([...(doc.pages||[]).map(p=>p.number),...artworkEvidence.map(({item})=>item.page)])].sort((a,b)=>a-b);
   const page=doc.pages.find(p=>p.number===Number(pageNumber))||doc.pages.find(p=>p.number===selected?.item.page)||doc.pages[0];
-  const zones=review.options?.panelZones||{};
-  const previewZones=sourcePreviewZones(review);
+  const dieline=review.documents?.find(document=>document.role==='dieline');
+  const packageType=review.options?.packageType||'carton';
+  const packageConfirmed=Boolean(review.options?.packageMappingConfirmed);
+  const waitingForPackageConfirmation=Boolean(dieline&&!packageConfirmed);
+  const zones=waitingForPackageConfirmation?{}:(review.options?.panelZones||{});
+  const previewZones=dieline?{}:sourcePreviewZones(review);
   const visualZones={...previewZones,...zones};
   const mappedCount=Object.values(zones).filter(zone=>zone?.box).length;
   const samplePreview=Object.keys(previewZones).some(name=>!zones[name]?.box);
@@ -223,9 +230,13 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
   if(!contextZone){const contextZones=genericPreviewOnly?zones:visualZones;contextZone=Object.entries(contextZones).find(([name])=>name==='front')||Object.entries(contextZones)[0]||null;}
   let visual='';
   if(mode==='3d'){
+    if(waitingForPackageConfirmation){
+      visual=`<div class="carton-stage package-confirmation-needed"><div class="package-confirmation-card"><span class="eyebrow">STRUCTURAL REFERENCE ATTACHED</span><h3>Confirm the dieline mapping first</h3><p>PackSignal found ${dieline.pages.length} dieline page${dieline.pages.length===1?'':'s'}. Review the face suggestions, map the matching artwork crops, and confirm them in Sources before a package-shaped preview appears.</p><button type="button" class="secondary" data-action="tab" data-tab="sources">Review dieline mapping →</button></div></div>`;
+    }else{
     const targetAngles={front:0,right:-90,back:-180,left:90};
     const defaultAngle=selectedPanelFound&&contextZone?.[0] in targetAngles?targetAngles[contextZone[0]]:-28;
-    const dims=foldedDimensions(review,genericFullPagePreview?zones:visualZones),angle=Number.isFinite(cartonRotation)?cartonRotation:defaultAngle,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
+    const modelType=dieline?packageType:'carton';
+    const dims=foldedDimensions(review,genericFullPagePreview?zones:visualZones,modelType),angle=Number.isFinite(cartonRotation)?cartonRotation:defaultAngle,tilt=Number.isFinite(cartonTilt)?cartonTilt:-10;
     const faceClasses={front:'carton-front',back:'carton-back',left:'carton-left',right:'carton-right',top:'carton-top',bottom:'carton-bottom'};
     const faces=Object.entries(faceClasses).map(([name,css])=>{
       const zone=visualZones[name]?.box?{...visualZones[name],name}:null;
@@ -245,7 +256,11 @@ export function workbenchArtwork(review,finding,{mode='2d',pageNumber=1,activeEv
     const depthNote=mappedCount&&dims.measured?'Proportions follow your mapped faces.':'Carton proportions are illustrative.';
     const studioLabel=genericFullPagePreview?'Full artwork page · preview only':genericPanelPreview?'Detected panels · preview only':samplePreview?'Source artwork preview':`${mappedCount} mapped face${mappedCount===1?'':'s'}`;
     const caption=genericFullPagePreview?'The full supplied page is shown on an illustrative front; map real faces for package-specific artwork context.':genericPanelPreview?'Crops follow explicit artwork panel labels. Confirm each face map before using package-specific context; the preview does not change review findings.':samplePreview?'Source crops on an illustrative carton; the preview does not change review findings.':depthNote;
-    visual=`<div class="carton-stage carton-studio ${mappedCount?'':'unmapped-preview'} ${samplePreview?'sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>PACKAGE STUDIO</span><span>${studioLabel}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive carton. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative carton"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||(samplePreview&&!genericPreviewOnly))?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${caption} Use 2D proof for exact artwork inspection.</p></div>`;
+    const shapeClass=dieline?`package-${modelType.replace('_','-')}`:'';
+    const shapeClassAttr=shapeClass?` ${shapeClass}`:'';
+    const packageName=dieline?({carton:'Carton',pouch:'Pouch',bottle_label:'Bottle label',sleeve:'Sleeve'}[modelType]||'Package'):'Carton';
+    visual=`<div class="carton-stage carton-studio${shapeClassAttr}${mappedCount?'':' unmapped-preview'}${samplePreview?' sample-artwork-preview':''}"><div class="carton-studio-head"><span><span class="studio-indicator" aria-hidden="true"></span>${dieline?`${packageName.toUpperCase()} PREVIEW`:'PACKAGE STUDIO'}</span><span>${studioLabel}</span></div><div class="carton-scene" data-carton-scene data-angle="${angle}" data-tilt="${tilt}" data-carton-width="${dims.width}" data-carton-height="${dims.height}" data-carton-depth="${dims.depth}" tabindex="0" role="group" aria-label="Interactive ${packageName.toLowerCase()} preview. Drag to rotate, or use arrow keys. Home resets the view."><div class="carton-studio-floor" aria-hidden="true"></div><div class="carton-orbit"><div class="carton-model${shapeClassAttr}" data-carton-model style="--carton-w:${dims.width}px;--carton-h:${dims.height}px;--carton-d:${dims.depth}px;transform:rotateX(${tilt}deg) rotateY(${angle}deg)">${faces}</div></div><span class="carton-drag-hint">Drag to explore <span aria-hidden="true">·</span> Arrow keys rotate</span></div>${prompt}<div class="carton-face-nav" role="group" aria-label="View package face">${['front','right','back','left'].map(name=>`<button type="button" data-carton-view="${name}" aria-pressed="false">${esc(faceLabels[name])}</button>`).join('')}</div><div class="carton-controls"><button type="button" class="carton-turntable" data-carton-play aria-pressed="false" aria-label="Play package turntable"><span data-carton-play-icon aria-hidden="true">▶</span><span data-carton-play-label>Turntable</span></button><label class="carton-rotate"><span class="sr-only">Rotate package</span><input type="range" data-carton-rotation min="-180" max="180" step="1" value="${angle}" aria-label="Rotate illustrative ${packageName.toLowerCase()}"><output>${Math.round(angle)}°</output></label><button type="button" class="textbutton" data-carton-reset>Reset</button></div><p class="carton-location" aria-live="polite">${esc(location)}${selectedPanelFound&&finding?.title?` · ${esc(finding.title)}`:''}</p>${(mappedCount||(samplePreview&&!genericPreviewOnly))?'<div class="carton-pin-legend"><span class="issue">! Issue</span><span class="review">? Review</span><span class="match">✓ Match</span></div>':''}<p class="carton-caption">${caption} Use 2D proof for exact artwork inspection.</p></div>`;
+    }
   }else{
     const regions=artworkEvidence.filter(({item})=>item.page===page.number&&Array.isArray(item.box));
     const issue=finding?.status==='issue';

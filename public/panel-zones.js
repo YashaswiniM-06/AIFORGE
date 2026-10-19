@@ -1,10 +1,8 @@
 import { sourcePreviewZones } from './artwork-ui.js';
+import { packageFaceLabel, packageType, packageTypes, suggestDielineMapping } from './dieline-layout.js';
 
 const escape = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
-const faces = [
-  ['front', 'Front panel'], ['back', 'Back panel'], ['left', 'Left side'],
-  ['right', 'Right side'], ['top', 'Top panel'], ['bottom', 'Bottom panel'],
-];
+const faces = packageTypes[0].faces.map(face => [face, packageFaceLabel('carton', face)]);
 
 function artwork(review) {
   return review.documents?.find(document => document.role === 'artwork');
@@ -16,10 +14,10 @@ function zoneBox(zone, page, selectedFace) {
   return `<div class="panel-zone ${escape(zone.name)} ${zone.name===selectedFace?'selected-face':'muted-face'}" style="left:${x0 * 100}%;top:${y0 * 100}%;width:${(x1 - x0) * 100}%;height:${(y1 - y0) * 100}%"><span>${escape(zone.name)} face</span></div>`;
 }
 
-export function selectedFacePreview(review, zones, face, draft = false) {
+export function selectedFacePreview(review, zones, face, draft = false, type = review.options?.packageType || 'carton') {
   const mapped=zones[face], zone=mapped||sourcePreviewZones(review)[face];
   const page=artwork(review)?.pages.find(item=>item.number===zone?.page);
-  const label=faces.find(([name])=>name===face)?.[1]||face;
+  const label=packageFaceLabel(type, face);
   if(!page||!zone?.box) return `<div class="zone-preview-empty"><strong>${escape(label)}</strong><span>No artwork mapped to this face yet. Draw its rectangle on the full sheet below.</span></div>`;
   const [x0,y0,x1,y1]=zone.box, width=x1-x0, height=y1-y0;
   if(width<=0||height<=0) return `<div class="zone-preview-empty"><strong>${escape(label)}</strong><span>Drag to define the face crop…</span></div>`;
@@ -31,6 +29,42 @@ export function selectedFacePreview(review, zones, face, draft = false) {
   const copy=mapped?'This crop is the artwork used on this carton face.':review.sample?'This supplied sample crop helps locate the face. Draw a rectangle below to create your own mapping.':'The complete supplied page is shown as an illustration only. Draw the actual face rectangle below to create a package-specific mapping.';
   // Use CSS variables so the absolute img is reliably clipped inside the container
   return `<div class="zone-preview-crop" style="width:${previewW}px;height:${previewH}px;flex:none"><img draggable="false" src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="${escape(label)} artwork crop" style="width:${100/width}%;height:${100/height}%;left:${-100*x0/width}%;top:${-100*y0/height}%"></div><div class="zone-preview-copy"><strong>${escape(label)}</strong><span>${caption} · Page ${page.number}</span><p>${copy}</p></div>`;
+}
+
+function dielinePagePreview(review, dieline, type, pageNumber) {
+  const page = dieline.pages.find(item => item.number === pageNumber) || dieline.pages[0];
+  const suggestion = suggestDielineMapping(dieline, type);
+  const overlays = Object.entries(suggestion.zones).filter(([, zone]) => zone.page === page.number).map(([face, zone]) => {
+    const [x0, y0, x1, y1] = zone.box;
+    return `<div class="dieline-suggestion-zone ${escape(face)}" style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>${escape(packageFaceLabel(type, face))}</span></div>`;
+  }).join('');
+  const folds = suggestion.folds.filter(item => item.page === page.number).map(fold => {
+    const position = fold.axis === 'horizontal' ? `top:${fold.position*100}%` : `left:${fold.position*100}%`;
+    return `<div class="dieline-fold ${fold.axis}" style="${position}" aria-hidden="true"></div>`;
+  }).join('');
+  return { suggestion, html: `<div class="dieline-suggestion-stage"><img data-dieline-image src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="Uploaded dieline page ${page.number} with unconfirmed face suggestions"><div data-dieline-overlay>${overlays}${folds}</div></div>` };
+}
+
+function dielineMapper(review, zones) {
+  const dieline = review.documents?.find(document => document.role === 'dieline');
+  if (!dieline?.pages?.length) return '';
+  const type = review.options?.packageType || 'carton';
+  const page = dieline.pages[0];
+  const { suggestion, html: preview } = dielinePagePreview(review, dieline, type, page.number);
+  const faceSummary = suggestion.faces.map(item => `<span class="dieline-face-chip ${item.suggested ? 'suggested' : ''}">${item.suggested ? '✓' : '○'} ${escape(item.label)}</span>`).join('');
+  const hasFront = Boolean(zones.front?.box);
+  return `<section class="package-mapping panel" data-package-mapping>
+    <div class="eyebrow">DIELINE-AWARE PACKAGE PREVIEW</div>
+    <h3>Suggest faces, then confirm the mapping</h3>
+    <p class="subtle">Suggestions use positioned face labels from the supplied dieline. Dashed lines are inferred panel boundaries, not detected crease or cut paths. Inspect every crop against both files; the 3D preview stays hidden until you confirm.</p>
+    <div class="package-mapping-controls">
+      <label>Package type<select name="packageType" data-package-type>${packageTypes.map(item => `<option value="${item.id}" ${item.id === type ? 'selected' : ''}>${item.label}</option>`).join('')}</select></label>
+      ${dieline.pages.length > 1 ? `<label>Dieline page<select data-dieline-page>${dieline.pages.map(item => `<option value="${item.number}" ${item.number === page.number ? 'selected' : ''}>Page ${item.number}</option>`).join('')}</select></label>` : ''}
+    </div>
+    <div class="package-mapping-layout"><div data-dieline-preview>${preview}</div><div class="package-mapping-notes"><b>Suggested faces</b><div class="dieline-face-list" data-dieline-faces>${faceSummary}</div><p data-dieline-note class="subtle">${escape(suggestion.note)}</p><button type="button" class="secondary" data-dieline-apply ${Object.keys(suggestion.zones).length ? '' : 'disabled'}>Copy face regions to artwork map</button><small>Copies are only a starting point. Adjust them on the artwork below.</small></div></div>
+    <label class="checkrow package-confirm"><input type="checkbox" name="packageMappingConfirmed" data-package-confirm ${review.options?.packageMappingConfirmed && hasFront ? 'checked' : ''} ${hasFront ? '' : 'disabled'}><span>I inspected the artwork crops against the dieline and confirm this package type and face assignment.<br><small class="subtle" data-package-confirm-hint>${hasFront ? 'The next 3D preview will use these reviewer-confirmed face crops.' : 'Map at least the front face on the artwork before confirming.'}</small></span></label>
+    <p class="notice" data-package-mapping-status>${review.options?.staleConfirmations?.packageMappingConfirmed ? 'The dieline, artwork, package type or face map changed. Please inspect and confirm again.' : ''}</p>
+  </section>`;
 }
 
 
@@ -67,6 +101,8 @@ export function panelZoneMapper(review) {
   if (!artDocument?.pages?.length) return '';
   const zones = Object.entries(review.options?.panelZones || {}).map(([name, zone]) => ({ name, ...zone }));
   const page = artDocument.pages[0];
+  const type = review.options?.packageType || 'carton';
+  const faceOptions = packageType(type).faces;
   const zoneNote = review.options?.panelZoneSource === 'authored synthetic sample geometry'
     ? 'Sample rectangles are illustrative starting points. Inspect them before use; they do not establish legal panel definitions.'
     : 'Draw each supplied artwork face. Only supplied checklist checks assigned to that face are recalculated.';
@@ -74,12 +110,13 @@ export function panelZoneMapper(review) {
     <div class="eyebrow">ARTWORK GEOMETRY</div>
     <h3>Map package faces</h3>
     <p class="subtle">${escape(zoneNote)}</p>
+    ${dielineMapper(review, review.options?.panelZones || {})}
     <div class="zone-controls">
-      <label>Preview / map face<select data-zone-name>${faces.map(([value, label]) => `<option value="${value}" ${value === 'front' ? 'selected' : ''}>${label}</option>`).join('')}</select></label>
+      <label>Preview / map face<select data-zone-name>${faceOptions.map(value => `<option value="${value}" ${value === 'front' ? 'selected' : ''}>${escape(packageFaceLabel(type, value))}</option>`).join('')}</select></label>
       <label>Artwork page<select data-zone-page>${artDocument.pages.map(item => `<option value="${item.number}">Page ${item.number}</option>`).join('')}</select></label>
       <button type="button" class="secondary" data-zone-clear>Clear this face</button>
     </div>
-    <div class="zone-face-preview" data-zone-face-preview aria-live="polite">${selectedFacePreview(review, review.options?.panelZones || {}, 'front')}</div>
+    <div class="zone-face-preview" data-zone-face-preview aria-live="polite">${selectedFacePreview(review, review.options?.panelZones || {}, 'front', false, type)}</div>
     <div class="zone-impact" data-zone-impact aria-live="polite"></div>
     <details class="zone-screening"><summary>Optional text-height screening</summary><p class="subtle">This adds an approximate human-review finding when PDF text height can be measured. It is not a legal minimum.</p><label>Screening value (mm)<input type="number" data-legibility-threshold min="0.1" max="10" step="0.1" value="${Number(review.options?.legibilityThresholdMm) || 1.6}"></label></details>
     <input type="hidden" name="panelZones" data-panel-zones-value value="${escape(JSON.stringify(review.options?.panelZones || {}))}">
@@ -107,9 +144,15 @@ export function mountPanelZoneMapper(container, review) {
   const zoneValue = root.querySelector('[data-panel-zones-value]');
   const form = root.closest('#source-form');
   const threshold = root.querySelector('[data-legibility-threshold]');
+  const mapping = root.querySelector('[data-package-mapping]');
+  const packageTypeInput = mapping?.querySelector('[data-package-type]');
+  const packageConfirm = mapping?.querySelector('[data-package-confirm]');
+  const packageStatus = mapping?.querySelector('[data-package-mapping-status]');
+  const dieline = review.documents?.find(document => document.role === 'dieline');
   form?.addEventListener('formdata', event => {
     event.formData.set('panelZones', zoneValue.value);
     event.formData.set('legibilityThresholdMm', threshold.value);
+    if (packageTypeInput) event.formData.set('packageType', packageTypeInput.value);
   });
   const stage = root.querySelector('[data-zone-stage]');
   const image = root.querySelector('[data-zone-image]');
@@ -124,6 +167,7 @@ export function mountPanelZoneMapper(container, review) {
   const dirtyFaces = new Set();
   const facePreview = root.querySelector('[data-zone-face-preview]');
   const selected = () => faceInput.value;
+  const selectedType = () => packageTypeInput?.value || review.options?.packageType || 'carton';
   const selectedPage = () => Number(pageInput.value);
   const currentPage = () => artDocument.pages.find(page => page.number === selectedPage()) || artDocument.pages[0];
   const persist = () => { zoneValue.value = JSON.stringify(zones); };
@@ -140,8 +184,43 @@ export function mountPanelZoneMapper(container, review) {
     status.textContent = mapped
       ? `${selected()} face mapped on page ${page.number}. Save to recalculate the supplied checklist geometry.`
       : `${selected()} face is not mapped on page ${page.number}. Drag over its artwork area to map it.`;
-    facePreview.innerHTML = selectedFacePreview(review, zones, selected(), dirtyFaces.has(selected()));
+    facePreview.innerHTML = selectedFacePreview(review, zones, selected(), dirtyFaces.has(selected()), selectedType());
     updateImpact();
+    if (packageConfirm) {
+      packageConfirm.disabled = !zones.front?.box;
+      const hint = mapping.querySelector('[data-package-confirm-hint]');
+      if (hint) hint.textContent = zones.front?.box
+        ? 'The next 3D preview will use these reviewer-confirmed face crops.'
+        : 'Map at least the front face on the artwork before confirming.';
+    }
+  };
+  const invalidatePackageConfirmation = message => {
+    if (!mapping) return;
+    packageConfirm.checked = false;
+    packageStatus.textContent = message || 'Mapping changed. Confirm again after inspecting the artwork crops.';
+  };
+  const refreshPackageType = () => {
+    if (!mapping || !packageTypeInput) return;
+    const supported = packageType(selectedType()).faces;
+    const currentFace = supported.includes(faceInput.value) ? faceInput.value : 'front';
+    faceInput.innerHTML = supported.map(face => `<option value="${face}" ${face === currentFace ? 'selected' : ''}>${escape(packageFaceLabel(selectedType(), face))}</option>`).join('');
+    if (!supported.includes(faceInput.value)) faceInput.value = 'front';
+    pageInput.value = String(zones[selected()]?.page || artDocument.pages[0].number);
+    redraw();
+    const pageSelect = mapping.querySelector('[data-dieline-page]');
+    const renderDieline = () => {
+      const selectedPage = Number(pageSelect?.value || dieline.pages[0].number);
+      const { suggestion, html } = dielinePagePreview(review, dieline, selectedType(), selectedPage);
+      mapping.querySelector('[data-dieline-preview]').innerHTML = html;
+      mapping.querySelector('[data-dieline-faces]').innerHTML = suggestion.faces.map(item => `<span class="dieline-face-chip ${item.suggested ? 'suggested' : ''}">${item.suggested ? '✓' : '○'} ${escape(item.label)}</span>`).join('');
+      mapping.querySelector('[data-dieline-note]').textContent = suggestion.note;
+      mapping.querySelector('[data-dieline-apply]').disabled = !Object.keys(suggestion.zones).length;
+    };
+    renderDieline();
+    if (pageSelect && !pageSelect.dataset.bound) {
+      pageSelect.dataset.bound = 'true';
+      pageSelect.addEventListener('change', renderDieline);
+    }
   };
   const point = event => {
     const rect = stage.getBoundingClientRect();
@@ -169,7 +248,7 @@ export function mountPanelZoneMapper(container, review) {
     const end = point(event); const box = [Math.min(start[0], end[0]), Math.min(start[1], end[1]), Math.max(start[0], end[0]), Math.max(start[1], end[1])];
     start = null; overlay.querySelectorAll('.panel-zone.preview').forEach(node => node.remove());
     if ((box[2] - box[0]) < 0.03 || (box[3] - box[1]) < 0.03) { redraw(); status.textContent = 'Draw a larger rectangle to map this face.'; return; }
-    zones[selected()] = { page: selectedPage(), box }; dirtyFaces.add(selected()); persist(); redraw();
+    zones[selected()] = { page: selectedPage(), box }; dirtyFaces.add(selected()); persist(); invalidatePackageConfirmation(); redraw();
   });
   stage.addEventListener('pointercancel', () => { start = null; overlay.querySelectorAll('.panel-zone.preview').forEach(node => node.remove()); redraw(); });
   faceInput.addEventListener('change', () => {
@@ -179,7 +258,31 @@ export function mountPanelZoneMapper(container, review) {
     redraw();
   });
   pageInput.addEventListener('change', redraw);
-  root.querySelector('[data-zone-clear]').addEventListener('click', () => { delete zones[selected()]; dirtyFaces.add(selected()); persist(); redraw(); });
+  root.querySelector('[data-zone-clear]').addEventListener('click', () => { delete zones[selected()]; dirtyFaces.add(selected()); persist(); invalidatePackageConfirmation(); redraw(); });
+  if (mapping) {
+    packageTypeInput.addEventListener('change', () => {
+      invalidatePackageConfirmation('Package type changed. Inspect the suggested faces and confirm the mapping again.');
+      refreshPackageType();
+    });
+    mapping.querySelector('[data-dieline-apply]').addEventListener('click', () => {
+      const suggestion = suggestDielineMapping(dieline, selectedType());
+      if (!Object.keys(suggestion.zones).length) return;
+      const artworkPage = currentPage().number;
+      for (const [face, zone] of Object.entries(suggestion.zones)) {
+        if (packageType(selectedType()).faces.includes(face)) {
+          // Dieline page numbers belong to a separate document. Suggestions
+          // copy normalized regions onto the currently selected artwork page;
+          // the reviewer then adjusts each crop against the actual artwork.
+          zones[face] = { page: artworkPage, box: [...zone.box] };
+          dirtyFaces.add(face);
+        }
+      }
+      persist();
+      invalidatePackageConfirmation('Suggested regions copied. Adjust the artwork crops, then confirm.');
+      refreshPackageType();
+    });
+  }
   if(zones.front?.page) pageInput.value=String(zones.front.page);
+  if (mapping) refreshPackageType();
   redraw();
 }

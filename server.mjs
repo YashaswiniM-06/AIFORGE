@@ -58,7 +58,8 @@ function confirmationFingerprint(r,key){
   const sources=r.documents.filter(d=>d.role==='spec').map(d=>[d.id,d.sha256]);
   const artwork=r.documents.filter(d=>d.role==='artwork').map(d=>[d.id,d.sha256,d.pages?.map(p=>[p.number,p.method])]);
   const rules=r.documents.filter(d=>d.role==='rules').map(d=>[d.id,d.sha256]);
-  const dependencies={sourceConfirmed:{sources,factChoices:r.options.factChoices||{}},completeArtwork:{artwork},nutritionBasisConfirmed:{sources,factChoices:r.options.factChoices||{},nutritionVariant:r.options.nutritionVariant||''},netQuantityConfirmed:{artwork},panelPlacementConfirmed:{artwork,panelZones:r.options.panelZones||{}},aiRulesConfirmed:{rules,proposedRules:r.ai?.rules||[]}}[key];
+  const dielines=r.documents.filter(d=>d.role==='dieline').map(d=>[d.id,d.sha256,d.pages?.map(p=>[p.number,p.image])]);
+  const dependencies={sourceConfirmed:{sources,factChoices:r.options.factChoices||{}},completeArtwork:{artwork},nutritionBasisConfirmed:{sources,factChoices:r.options.factChoices||{},nutritionVariant:r.options.nutritionVariant||''},netQuantityConfirmed:{artwork},panelPlacementConfirmed:{artwork,panelZones:r.options.panelZones||{}},packageMappingConfirmed:{artwork,dielines,packageType:r.options.packageType||'carton',panelZones:r.options.panelZones||{}},aiRulesConfirmed:{rules,proposedRules:r.ai?.rules||[]}}[key];
   return hashValue(dependencies||{});
 }
 function findingDependencyFingerprint(r,finding){
@@ -69,7 +70,7 @@ function findingDependencyFingerprint(r,finding){
 }
 function refreshDependencies(r){
   r.options ||= {};r.options.confirmationFingerprints ||= {};r.options.staleConfirmations ||= {};
-  for(const key of ['sourceConfirmed','completeArtwork','nutritionBasisConfirmed','netQuantityConfirmed','panelPlacementConfirmed','aiRulesConfirmed']){
+  for(const key of ['sourceConfirmed','completeArtwork','nutritionBasisConfirmed','netQuantityConfirmed','panelPlacementConfirmed','packageMappingConfirmed','aiRulesConfirmed']){
     if(!r.options[key])continue;
     const expected=r.options.confirmationFingerprints[key];
     if(!expected||expected!==confirmationFingerprint(r,key)){r.options[key]=false;delete r.options.confirmationFingerprints[key];r.options.staleConfirmations[key]=true;}
@@ -120,13 +121,15 @@ async function writeInputs(r,files){
   for(const f of files){
     const name=basename(String(f.name||'')).replace(/[\x00-\x1f]/g,'').slice(0,160),ext=extname(name).toLowerCase();
     if(!['.pdf','.png','.jpg','.jpeg','.webp','.xlsx','.docx','.csv','.json','.txt','.md'].includes(ext))throw fail('Unsupported file type: '+name);
-    if(!['artwork','spec','rules','claims'].includes(f.role))throw fail('Invalid document role.');
+    if(!['artwork','dieline','spec','rules','claims'].includes(f.role))throw fail('Invalid document role.');
     if(f.role==='artwork'&&!['.pdf','.png','.jpg','.jpeg','.webp'].includes(ext))throw fail('Artwork must be a PDF or image.');
+    if(f.role==='dieline'&&!['.pdf','.png','.jpg','.jpeg','.webp'].includes(ext))throw fail('A dieline must be a PDF or image.');
     if(typeof f.base64!=='string'||!f.base64.length||!/^[A-Za-z0-9+/]*={0,2}$/.test(f.base64))throw fail('Invalid encoded file.');
     const bytes=Buffer.from(f.base64,'base64');total+=bytes.length;
     if(bytes.length>15_000_000||total>30_000_000)throw fail('Limit: 15 MB per file, 30 MB per review.',413);
     const id=randomUUID(),disk=id+ext;await writeFile(join(dir(r.id),'files',disk),bytes,{mode:0o600});written.push({id,name,role:f.role,disk});
   }
+  if(written.filter(file=>file.role==='dieline').length>1)throw fail('Add at most one dieline document per review.');
   return written;
 }
 async function processReview(id){
@@ -191,13 +194,13 @@ async function processReview(id){
 async function createReview(input){
   if(input.options?.marketPreset!==undefined&&!['none','us','india','eu'].includes(input.options.marketPreset))throw fail('Unknown market preset.');
   if(jobs.size>=4)throw fail('Four reviews are already queued. Wait for one to finish.',429);
-  const r={id:randomUUID(),name:String(input.name||'Packaging review').slice(0,120),market:String(input.market||'Unspecified').slice(0,60),createdAt:new Date().toISOString(),status:'queued',progress:'Waiting to process',mode:input.mode==='local'?'local':'ai',options:{completeArtwork:input.options?.completeArtwork===true,sourceConfirmed:false,marketPreset:input.options?.marketPreset||'none',panelZones:{}},files:[],documents:[],decisions:{},audit:[]};
+  const r={id:randomUUID(),name:String(input.name||'Packaging review').slice(0,120),market:String(input.market||'Unspecified').slice(0,60),createdAt:new Date().toISOString(),status:'queued',progress:'Waiting to process',mode:input.mode==='local'?'local':'ai',options:{completeArtwork:input.options?.completeArtwork===true,sourceConfirmed:false,marketPreset:input.options?.marketPreset||'none',panelZones:{},...(Array.isArray(input.files)&&input.files.some(file=>file.role==='dieline')?{packageType:'carton',packageMappingConfirmed:false}:{})},files:[],documents:[],decisions:{},audit:[]};
   await mkdir(join(dir(r.id),'files'),{recursive:true,mode:0o700});await mkdir(join(dir(r.id),'rendered'),{mode:0o700});
   try{
     let files=input.files;
     if(input.parentId){
       const previous=await load(input.parentId);if(previous.status!=='ready')throw fail('The previous review is not ready.');
-      r.parentId=previous.id;r.name=previous.name+' · revision';r.market=previous.market;r.sample=previous.sample;r.options={...previous.options,marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none',completeArtwork:input.options?.completeArtwork===true,panelPlacementConfirmed:false,panelZones:sampleZones(previous.sample),...(['fieldday','clean','conflict','signals'].includes(previous.sample)?{panelZoneSource:'authored synthetic sample geometry'}:{}),nutritionBasisConfirmed:false,netQuantityConfirmed:false,...(input.mode==='ai'?{aiRulesConfirmed:false}:{})};
+      r.parentId=previous.id;r.name=previous.name+' · revision';r.market=previous.market;r.sample=previous.sample;r.options={...previous.options,marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none',completeArtwork:input.options?.completeArtwork===true,panelPlacementConfirmed:false,packageMappingConfirmed:false,panelZones:sampleZones(previous.sample),...(['fieldday','clean','conflict','signals'].includes(previous.sample)?{panelZoneSource:'authored synthetic sample geometry'}:{}),nutritionBasisConfirmed:false,netQuantityConfirmed:false,...(input.mode==='ai'?{aiRulesConfirmed:false}:{})};
       const references=previous.files.filter(f=>f.role!=='artwork');
       let revised=input.files;
       if(input.sampleRevision){if(!['fieldday','clean','conflict'].includes(previous.sample))throw fail('The sample revision is only available for Fieldday.');revised=[{name:'fieldday-v2.pdf',role:'artwork',base64:(await readFile(join(root,'samples/fieldday-v2/artwork/fieldday-v2.pdf'))).toString('base64')}];}
@@ -242,17 +245,22 @@ const server=createServer(async(req,res)=>{
       if(action==='decisions'&&method==='POST'){const b=await body(req);const finding=r.findings.find(f=>f.id===b.findingId);if(!finding||!['open','acknowledged','accepted_exception','needs_changes'].includes(b.disposition))throw fail('Invalid reviewer decision.');if(typeof b.note!=='string'||b.note.trim().length<3||b.note.length>2000)throw fail('Add a decision note (3–2,000 characters).');r.decisions[b.findingId]={disposition:b.disposition,note:b.note.trim(),at:new Date().toISOString(),dependencyHash:findingDependencyFingerprint(r,finding)};clearSeal(r);audit(r,'reviewer_decision',`${b.findingId}: ${b.disposition} — ${b.note.trim()}`);await save(r);return json(res,200,r);}
       if(action==='sources'&&method==='POST'){
         const b=await body(req);if(typeof b.reason!=='string'||b.reason.trim().length<3||b.reason.length>2000)throw fail('Explain the source decision.');
-        const priorConfirmations={};for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','netQuantityConfirmed'])priorConfirmations[key]={value:r.options[key]===true,fingerprint:r.options.confirmationFingerprints?.[key]};
+        const priorConfirmations={};for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','packageMappingConfirmed','netQuantityConfirmed'])priorConfirmations[key]={value:r.options[key]===true,fingerprint:r.options.confirmationFingerprints?.[key]};
         if(b.marketPreset!==undefined){if(!['none','us','india','eu'].includes(b.marketPreset))throw fail('Unknown market preset.');r.options.marketPreset=b.marketPreset;}
+        if(b.packageType!==undefined){if(!['carton','pouch','bottle_label','sleeve'].includes(b.packageType))throw fail('Choose a supported package type.');r.options.packageType=b.packageType;}
         if(b.factChoices){for(const [field,factId]of Object.entries(b.factChoices)){if(!r.facts.some(f=>f.field===field&&(factId===''||f.id===factId)))throw fail('Invalid source choice.');}r.options.factChoices={...r.options.factChoices,...b.factChoices};}
         const artwork=r.documents.find(document=>document.role==='artwork');const nextZones=panelZones(b.panelZones,artwork);if(nextZones!==undefined)r.options.panelZones=nextZones;
         if(b.legibilityThresholdMm!==undefined){const threshold=Number(b.legibilityThresholdMm);if(!Number.isFinite(threshold)||threshold<0.1||threshold>10)throw fail('Text-height screening value must be between 0.1 and 10 mm.');r.options.legibilityThresholdMm=threshold;}
         if(b.nutritionVariant!==undefined){if(typeof b.nutritionVariant!=='string'||b.nutritionVariant.length>30)throw fail('Invalid nutrition column.');r.options.nutritionVariant=b.nutritionVariant;}
         refreshDependencies(r);
+        if(b.packageMappingConfirmed===true&&(!r.documents.some(document=>document.role==='dieline')||!r.options.panelZones?.front?.box))throw fail('Upload a dieline and map the front artwork face before confirming the 3D package preview.');
         r.options.confirmationFingerprints ||= {};r.options.staleConfirmations ||= {};
-        for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','netQuantityConfirmed'])if(typeof b[key]==='boolean'){
+        for(const key of ['sourceConfirmed','completeArtwork','aiRulesConfirmed','nutritionBasisConfirmed','panelPlacementConfirmed','packageMappingConfirmed','netQuantityConfirmed'])if(typeof b[key]==='boolean'){
           const nextFingerprint=confirmationFingerprint(r,key),prior=priorConfirmations[key];
           if(!b[key]){r.options[key]=false;delete r.options.confirmationFingerprints[key];}
+          else if(key==='packageMappingConfirmed'){
+            r.options[key]=true;r.options.confirmationFingerprints[key]=nextFingerprint;delete r.options.staleConfirmations[key];
+          }
           else if(prior.value&&(!prior.fingerprint||prior.fingerprint!==nextFingerprint)){r.options[key]=false;delete r.options.confirmationFingerprints[key];r.options.staleConfirmations[key]=true;}
           else{r.options[key]=true;r.options.confirmationFingerprints[key]=nextFingerprint;delete r.options.staleConfirmations[key];}
         }

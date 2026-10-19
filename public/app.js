@@ -529,7 +529,7 @@ function showUpload(revision = false) {
   revisionUpload = revision;
   dialog(
     revision ? "Review revised artwork" : "New artwork review",
-    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}<div class="upload-box"><b>${revision ? "Choose one revised artwork" : "Choose artwork and reference files"}</b><br><span class="subtle">PDF, images, XLSX, DOCX, CSV, JSON, TXT, MD · 15 MB per file · 30 MB total</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${revision ? ".pdf,.png,.jpg,.jpeg,.webp" : ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.docx,.csv,.json,.txt,.md"}" aria-label="Select files"></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">${esc(workspaceDataLocation.uploadNotice)}</p><p id="dialog-error" class="dialog-error"></p></form>`,
+    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}<div class="upload-box"><b>${revision ? "Choose one revised artwork" : "Choose artwork, references, and an optional dieline"}</b><br><span class="subtle">PDF, images, XLSX, DOCX, CSV, JSON, TXT, MD · 15 MB per file · 30 MB total</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${revision ? ".pdf,.png,.jpg,.jpeg,.webp" : ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.docx,.csv,.json,.txt,.md"}" aria-label="Select files"></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">For a package-specific 3D preview, add one dieline and confirm the suggested face mapping under Sources after upload. ${esc(workspaceDataLocation.uploadNotice)}</p><p id="dialog-error" class="dialog-error"></p></form>`,
     `<button class="secondary" data-action="close">Cancel</button><button class="primary" type="submit" form="upload-form">${revision ? "Compare revision" : "Create review"} →</button>`,
   );
 }
@@ -537,7 +537,7 @@ function uploadList() {
   $("#upload-list").innerHTML = uploads
     .map(
       (f, i) =>
-        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB</small></span><select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload ? "disabled" : ""}>${["artwork", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select><button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
+        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB</small></span><select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload ? "disabled" : ""}>${["artwork", "dieline", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", dieline: "Dieline / structural reference", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select><button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
     )
     .join("");
 }
@@ -815,7 +815,9 @@ document.addEventListener("change", (event) => {
     for (const file of added) {
       file.role = revisionUpload
         ? "artwork"
-        : !uploads.some((f) => f.role === "artwork") &&
+        : /dieline|cutline|die-line/i.test(file.name)
+          ? "dieline"
+          : !uploads.some((f) => f.role === "artwork") &&
             /\.(pdf|png|jpe?g|webp)$/i.test(file.name)
           ? "artwork"
           : /rule|checklist/i.test(file.name)
@@ -899,6 +901,7 @@ document.addEventListener("submit", async (event) => {
         marketPreset: data.get("marketPreset") || "none",
         panelZones: JSON.parse(data.get("panelZones") || "{}"),
         legibilityThresholdMm: data.get("legibilityThresholdMm"),
+          packageType: data.get("packageType") || undefined,
       };
       for (const key of [
         "completeArtwork",
@@ -906,6 +909,7 @@ document.addEventListener("submit", async (event) => {
         "aiRulesConfirmed",
         "nutritionBasisConfirmed",
         "panelPlacementConfirmed",
+        "packageMappingConfirmed",
         "netQuantityConfirmed",
       ])
         if (form.elements[key]) fields[key] = data.has(key);

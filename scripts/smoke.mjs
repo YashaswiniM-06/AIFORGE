@@ -72,7 +72,7 @@ try {
     'The browser must not contain key-entry or key-clear controls.');
   assert.match(clientScript, /AI assisted · recommended/,
     'AI-assisted review should be the default mode.');
-  for (const asset of ['/app.js', '/artwork-ui.js', '/walkthrough.js', '/styles.css']) {
+  for (const asset of ['/app.js', '/artwork-ui.js', '/dieline-layout.js', '/walkthrough.js', '/styles.css']) {
     const response = await fetch(`${base}${asset}`);
     assert.equal(response.status, 200, `${asset} is served`);
   }
@@ -117,6 +117,11 @@ try {
           base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jg4QAAAAASUVORK5CYII=',
         },
         {
+          name: 'new-dieline.png',
+          role: 'dieline',
+          base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jg4QAAAAASUVORK5CYII=',
+        },
+        {
           name: 'product-spec.json',
           role: 'spec',
           base64: Buffer.from(JSON.stringify({ product_name: 'Smoke-test product', net_quantity: '100 g' })).toString('base64'),
@@ -135,6 +140,33 @@ try {
   assert.equal(uploadedReview.sample, undefined, 'An uploaded review must remain a user review, not a built-in sample.');
   assert.deepEqual(uploadedReview.options.panelZones, {}, 'New uploads must not get guessed panel rectangles.');
   assert.equal(uploadedReview.options.panelZoneSource, undefined, 'New uploads must not claim an automated panel map.');
+  assert.ok(uploadedReview.documents.some(document => document.role === 'dieline'));
+  assert.equal(uploadedReview.options.packageType, 'carton');
+  assert.equal(uploadedReview.options.packageMappingConfirmed, false, 'A dieline upload must not show a package-specific 3D preview before reviewer confirmation.');
+  const mapped = await json(await fetch(`${base}/api/reviews/${uploaded.id}/sources`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      reason: 'Reviewer checked the dieline and artwork face.',
+      packageType: 'pouch',
+      panelZones: { front: { page: 1, box: [.1, .1, .9, .9] } },
+      packageMappingConfirmed: true,
+    }),
+  }));
+  assert.equal(mapped.options.packageType, 'pouch');
+  assert.equal(mapped.options.packageMappingConfirmed, true, 'Only an explicit confirmation with a front artwork crop enables the package preview.');
+  const stale = await json(await fetch(`${base}/api/reviews/${uploaded.id}/sources`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      reason: 'Artwork face crop changed during review.',
+      packageType: 'pouch',
+      panelZones: { front: { page: 1, box: [.2, .1, .9, .9] } },
+      packageMappingConfirmed: false,
+    }),
+  }));
+  assert.equal(stale.options.packageMappingConfirmed, false);
+  assert.equal(stale.options.staleConfirmations.packageMappingConfirmed, true, 'A changed artwork crop invalidates the saved package mapping.');
 
   const finding = review.findings[0];
   const decision = await json(await fetch(`${base}/api/reviews/${created.id}/decisions`, {
@@ -168,6 +200,7 @@ try {
       'mutation token enforcement',
       'organizer PDF/XLSX ingestion and review completion',
       'new image upload review without guessed packaging panel geometry',
+      'dieline upload, reviewer-confirmed pouch mapping, and stale-map invalidation',
       'reviewer decision and audit event',
       'portable HTML report and signed proof verification',
       'PDF report generation',

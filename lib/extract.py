@@ -47,7 +47,7 @@ def extract(path, role, outdir, artifact_id, name):
             tp = page.get_textpage(); text = tp.get_text_range().replace('\x00','')
             if len(text) > 100_000: raise ValueError('Too much text in one PDF page.')
             lines=[]
-            panel_label=re.compile(r'\b(?:front|back|rear|left|right|top|bottom)\s+(?:carton\s+)?(?:panel|side|face)\b|\b(?:panel|side|face)\s+(?:of\s+)?(?:front|back|rear|left|right|top|bottom)\b',re.I)
+            panel_label=re.compile(r'\b(?:front|back|rear|left|right|top|bottom)\s+(?:(?:carton|label|side)\s+)?(?:panel|side|face|gusset|label)\b|\b(?:panel|side|face|gusset)\s+(?:of\s+)?(?:front|back|rear|left|right|top|bottom)\b|\blabel\s+[ab]\b',re.I)
             def text_rect(start,end):
                 boxes=[]
                 for ix in range(start,min(end,tp.count_chars())):
@@ -76,7 +76,8 @@ def extract(path, role, outdir, artifact_id, name):
             doc['pages'].append(dict(number=n+1,width=width,height=height,unit='pt',image=image_name,text=text,codes=codes,
                                       method='pdf_text' if len(text.strip())>40 else 'vision_needed'))
             if scan_warning and scan_warning not in doc['warnings']: doc['warnings'].append(scan_warning)
-            if len(text.strip())<40: doc['warnings'].append(f'Page {n+1} has little extractable text. Vision or manual review is needed.')
+            if len(text.strip())<40:
+                doc['warnings'].append(f'Dieline page {n+1} has little extractable face-label text; structural geometry needs manual review.' if role=='dieline' else f'Page {n+1} has little extractable text. Vision or manual review is needed.')
             tp.close(); page.close()
         pdf.close()
         doc['text']='\n\n'.join(x['text'] for x in doc['pages'])
@@ -89,7 +90,7 @@ def extract(path, role, outdir, artifact_id, name):
         codes, scan_warning=scan_codes(im)
         doc['pages']=[dict(number=1,width=width,height=height,unit='px',image=image_name,text='',codes=codes,method='vision_needed')]
         if scan_warning: doc['warnings'].append(scan_warning)
-        doc['warnings']=['Image input requires connected vision analysis or manual review; no local OCR text was inferred.']
+        doc['warnings']=['Dieline image has no locally extracted face labels; map faces manually. No OCR text was inferred.' if role=='dieline' else 'Image input requires connected vision analysis or manual review; no local OCR text was inferred.']
     elif ext=='.xlsx':
         from openpyxl import load_workbook
         wb=load_workbook(p,read_only=True,data_only=True,keep_links=False)

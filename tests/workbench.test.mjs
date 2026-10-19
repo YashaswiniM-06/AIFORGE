@@ -170,6 +170,22 @@ test('organizer sample gets a non-persistent visual carton mockup from complete 
   assert.doesNotMatch(html,/carton-pin /);
 });
 
+test('Dancing Fish keeps its established artwork crops and illustrative carton dimensions',()=>{
+  const sample={...review,id:'dancing-fish-geometry-lock',sample:'organizer',documents:[{
+    ...review.documents[0],pages:[{...review.documents[0].pages[0],image:'dancing-fish-source.png'}],
+  }],options:{panelZones:{}}};
+  const before=structuredClone(sample),zones=sourcePreviewZones(sample),html=workbenchArtwork(sample,finding,{mode:'3d'});
+  assert.deepEqual(zones,{
+    back:{page:1,box:[.04,.375,.335,.786]},
+    left:{page:1,box:[.346,.375,.514,.786]},
+    front:{page:1,box:[.528,.375,.82,.786]},
+    right:{page:1,box:[.834,.375,.993,.786]},
+  });
+  assert.match(html,/--carton-w:162px;--carton-h:163px;--carton-d:88px/);
+  assert.match(html,/src="\/api\/reviews\/dancing-fish-geometry-lock\/images\/dancing-fish-source.png"/);
+  assert.deepEqual(sample,before,'the locked sample geometry and review data remain unchanged');
+});
+
 test('the fold model renders all six explicitly mapped carton faces',()=>{
   const mapped={...review,options:{panelZones:Object.fromEntries([
     ['front',[.05,.05,.45,.95]],['back',[.55,.05,.72,.95]],['left',[.73,.05,.8,.95]],

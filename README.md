@@ -136,7 +136,7 @@ The 21/21 result is a deterministic synthetic regression evaluation, not an inde
 - PackSignal checks supplied sources and supported rules. It does **not** certify compliance with FDA, FSSAI, EU, or any other legal regime.
 - Market presets are starter review prompts, not complete or current legal rules. Applicability and required formatting need qualified human review.
 - OCR and AI transcription can miss or misread text. A failed extraction alone is never treated as proof that copy is absent.
-- The optional 3D view is approximate carton context built from reviewer-drawn rectangular zones. It is not a structural dieline, CAD fold simulation, or inference of cut/crease, glue, board stock, or print behavior.
+- Add an optional PDF/image dieline to a new review for coarse, editable face and boundary suggestions, then map artwork crops and confirm them before opening an illustrative carton, pouch, bottle-label, or sleeve preview. Label-based suggestions are not cut/crease detection, and the preview is not CAD geometry or a simulation of glue, board stock, or print behavior; adjust every mapped crop by hand.
 - The organizer sample contains draft/reconstructed content and nutrition ambiguity. PackSignal reports those limits; it does not label the supplied artwork legally wrong.
 - This is an independent hackathon prototype, not an Esko product or endorsement. It is not a multi-tenant production service.
 

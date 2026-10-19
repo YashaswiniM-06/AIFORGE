@@ -15,7 +15,7 @@ flowchart TD
   E --> F[Match / Issue / Human review / Unable to verify]
   F --> R[Proof viewer and reviewer decisions]
   R --> W[Review stage stepper and prepress HUD]
-  W --> Z[2D evidence spotlight and mapped 3D carton context]
+  W --> Z[2D evidence spotlight and confirmed 3D package context]
   Z --> T[Source-to-rule-to-artwork trace]
   R --> A[Local audit record + signed PDF / HTML / JSON]
   N[Revised artwork] --> P
@@ -26,7 +26,7 @@ flowchart TD
 
 | Component | Responsibility |
 |---|---|
-| `public/` | Reviewer workflow, proof spotlight, trace connectors, viewer controls and panel-mapped carton preview; no provider keys embedded in code |
+| `public/` | Reviewer workflow, proof spotlight, trace connectors, viewer controls, dieline face suggestions and reviewer-confirmed package preview; no provider keys embedded in code |
 | `server.mjs` | Validated uploads, configured storage, serial jobs, APIs, session token, report requests, optional hosted Basic Auth |
 | `lib/extract.py` | Bounded document parsing, PDF coordinates, page images, report generation |
 | `lib/engine.mjs` | Source facts/conflicts, comparisons, evidence, revision changes |
@@ -35,7 +35,7 @@ flowchart TD
 | `scripts/verify-report.mjs` | Offline integrity check for exported HTML or JSON proofs |
 | `.packproof/` | Local records, original inputs, rendered pages and cached responses; excluded from submission. Hosted deployments point this data directory at a persistent disk. |
 
-The prepress HUD derives millimeter coordinates from extracted PDF page dimensions. Raster-only inputs use normalized coordinates because print scale is unknown. Before showing “SHA-256 verified,” the browser fetches the locally stored original file and compares its digest with the extraction record. The six-face carton context uses reviewer-drawn rectangular panel zones and approximate cuboid dimensions; it does not detect cut/crease geometry or create a structural CAD model.
+The prepress HUD derives millimeter coordinates from extracted PDF page dimensions. Raster-only inputs use normalized coordinates because print scale is unknown. Before showing “SHA-256 verified,” the browser fetches the locally stored original file and compares its digest with the extraction record. A PDF dieline can contribute positioned face-label hints and coarse editable region/fold-boundary suggestions; these are not detected cut/crease geometry. Carton, pouch, bottle-label and sleeve contexts remain illustrative previews, not structural CAD models.
 
 ## Result semantics
 

@@ -50,6 +50,23 @@ test('sends all four artwork pages in bounded image batches and combines transcr
   }finally{await rm(directory,{recursive:true,force:true});}
 });
 
+test('keeps structural dielines out of product-artwork vision requests',async()=>{
+  const {directory,review}=await makeReview();
+  const dielinePage={number:1,method:'vision_needed',image:'dieline-p1.png',text:''};
+  await writeFile(join(directory,'rendered',dielinePage.image),Buffer.from('mock-dieline'));
+  review.documents.push({id:'die-1',name:'carton-dieline.pdf',role:'dieline',text:'FRONT PANEL',pages:[dielinePage]});
+  let request;
+  try{
+    const result=await geminiReview(review,directory,'mock-key','gemini-test',async(_url,options)=>{
+      request=JSON.parse(options.body);
+      return success(transcriptionPayload(pageLabels(request)));
+    });
+    const serialized=JSON.stringify(request);
+    assert.doesNotMatch(serialized,/die-1|carton-dieline|FRONT PANEL|dieline-p1/);
+    assert.equal(result.imagePagesSent,4,'Only product artwork pages enter the visual transcription pass.');
+  }finally{await rm(directory,{recursive:true,force:true});}
+});
+
 test('retains completed batch results and names image-only pages when a later batch is quota-limited',async()=>{
   const {directory,review}=await makeReview();let requests=0;
   try{
