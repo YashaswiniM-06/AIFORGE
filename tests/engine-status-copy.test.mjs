@@ -43,5 +43,6 @@ test('health copy reports the configured pacing, cooldown, and exhausted request
   });
   assert.match(copy.pacing, /12 seconds/);
   assert.equal(copy.cooldownUntil, '2026-10-18T00:00:00.000Z');
-  assert.match(copy.allowance, /allowance is reached/);
+  assert.match(copy.allowance, /AI requests are paused for this session/i);
+  assert.match(copy.allowance, /Exact checks and cached AI results remain available/i);
 });

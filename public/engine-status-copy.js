@@ -24,7 +24,7 @@ export function engineStatusCopy(status = {}) {
     cooldownUntil: usage.cooldownUntil || null,
     allowance:
       usage.remainingAttempts === 0
-        ? "The session request allowance is reached. Exact checks and cached AI results remain available."
+        ? "AI requests are paused for this session. Exact checks and cached AI results remain available."
         : "",
   };
 }
