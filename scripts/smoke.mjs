@@ -74,7 +74,7 @@ try {
     'The browser must not contain key-entry or key-clear controls.');
   assert.match(clientScript, /AI assisted · recommended/,
     'AI-assisted review should be the default mode.');
-  for (const asset of ['/app.js', '/artwork-ui.js', '/dieline-layout.js', '/source-impact.js', '/walkthrough.js', '/styles.css']) {
+  for (const asset of ['/app.js', '/artwork-ui.js', '/cad-carton.js', '/camera-intake.js', '/dieline-layout.js', '/source-impact.js', '/walkthrough.js', '/styles.css']) {
     const response = await fetch(`${base}${asset}`);
     assert.equal(response.status, 200, `${asset} is served`);
   }

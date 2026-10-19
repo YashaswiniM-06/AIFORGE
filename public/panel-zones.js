@@ -66,7 +66,7 @@ function dielineMapper(review, zones) {
   const faceSummary = suggestion.faces.map(item => `<span class="dieline-face-chip ${item.suggested ? 'suggested' : ''}">${item.suggested ? '✓' : '○'} ${escape(item.label)}</span>`).join('');
   const hasFront = Boolean(zones.front?.box);
   const mappingDescription = dieline.vectorGeometry?.format === 'DXF'
-    ? 'ASCII DXF line and lightweight-polyline geometry is preserved in the preview. Explicit layer or linetype names identify cut, crease, glue, perforation, or unclassified strokes; labeled closed panels can suggest face crops. Confirm the original geometry and artwork mapping. The package-shaped 3D view remains illustrative.'
+    ? 'ASCII DXF line and lightweight-polyline geometry is preserved in the preview. Explicit layer or linetype names identify cut, crease, glue, perforation, or unclassified strokes; labeled closed panels can suggest face crops. A six-face rectangular carton with physical units and explicit crease boundaries can use a DXF-derived, dimensionally faithful shell after mapping is confirmed. Board thickness, tabs, and non-rectangular details remain outside that shell.'
     : 'Positioned labels suggest face identities. For image-only or unlabeled dielines, long straight strokes outline candidate regions. Those visual cues cannot distinguish cut from crease. Inspect the original and map the matching artwork crops; the 3D preview stays hidden until you confirm.';
   return `<section class="package-mapping panel" data-package-mapping>
     <div class="eyebrow">DIELINE-AWARE PACKAGE PREVIEW</div>

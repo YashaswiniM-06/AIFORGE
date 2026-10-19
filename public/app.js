@@ -13,6 +13,7 @@ import { engineStatusCopy } from "./engine-status-copy.js";
 import { mergeReviewSummary } from "./review-summary.js";
 import { sourceImpactView } from "./source-impact.js";
 import { teamReviewView } from "./team-review.js";
+import { cameraIntakeMarkup, mountCameraIntake, combineArtworkImagesAsPdf } from "./camera-intake.js";
 import "./review-actions.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -548,16 +549,20 @@ function showUpload(revision = false, sourceRevision = false) {
   const help = sourceRevision ? "PDF, XLSX, DOCX, CSV, JSON, TXT, MD · choose which existing source each file replaces" : "PDF, images, ASCII DXF (LINE / LWPOLYLINE), XLSX, DOCX, CSV, JSON, TXT, MD · 15 MB per file · 30 MB total";
   dialog(
     sourceRevision ? "Update specifications or checklist" : revision ? "Review revised artwork" : "New artwork review",
-    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : sourceRevision ? `<p class="subtle">The artwork and confirmed face mapping stay unchanged. Choose one or more existing specification, checklist, or claims files to replace.</p>${sourceTargets.length ? "" : '<div class="notice">This review has no replaceable source files.</div>'}` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}<div class="upload-box"><b>${esc(sourceLabel)}</b><br><span class="subtle">${esc(help)}</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${accepted}" aria-label="Select files" ${sourceRevision && !sourceTargets.length ? "disabled" : ""}></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision || sourceRevision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">${sourceRevision ? "Each replacement keeps the existing source role. The original review remains available in history." : `For a package-specific preview, add a dieline and confirm the artwork-face mapping under Sources after upload. DXF layer names can show cut/crease cues; the 3D package form remains illustrative. ${esc(workspaceDataLocation.uploadNotice)}`}</p><p id="dialog-error" class="dialog-error"></p></form>`,
+    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : sourceRevision ? `<p class="subtle">The artwork and confirmed face mapping stay unchanged. Choose one or more existing specification, checklist, or claims files to replace.</p>${sourceTargets.length ? "" : '<div class="notice">This review has no replaceable source files.</div>'}` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}${!revision && !sourceRevision ? cameraIntakeMarkup() : ''}<div class="upload-box"><b>${esc(sourceLabel)}</b><br><span class="subtle">${esc(help)}</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${accepted}" aria-label="Select files" ${sourceRevision && !sourceTargets.length ? "disabled" : ""}></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision || sourceRevision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">${sourceRevision ? "Each replacement keeps the existing source role. The original review remains available in history." : `For dimensionally faithful supported carton geometry, add a measured DXF dieline. Photos and video create artwork pages; map and confirm each face under Sources for the textured 3D preview. ${esc(workspaceDataLocation.uploadNotice)}`}</p><p id="dialog-error" class="dialog-error"></p></form>`,
     `<button class="secondary" data-action="close">Cancel</button><button class="primary" type="submit" form="upload-form">${sourceRevision ? "Compare source changes" : revision ? "Compare artwork" : "Create review"} →</button>`,
   );
+  if (!revision && !sourceRevision) mountCameraIntake($('#dialog'), files => {
+    for (const file of files) { file.role = 'artwork'; uploads.push(file); }
+    uploadList();
+  }, () => uploads.filter(file => file.role === 'artwork' && (/^image\//.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name))).length);
 }
 function uploadList() {
   const sourceTargets = (current?.files || []).filter(file => ["spec", "rules", "claims"].includes(file.role));
   $("#upload-list").innerHTML = uploads
     .map(
       (f, i) =>
-        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB</small></span>${sourceRevisionUpload ? `<select aria-label="Source file replaced by ${esc(f.name)}" data-replace-source="${i}">${sourceTargets.map(source => `<option value="${esc(source.id)}" ${f.replaceFileId === source.id ? "selected" : ""}>${esc({spec:"Product spec",rules:"Checklist",claims:"Claims register"}[source.role])} · ${esc(source.name)}</option>`).join("")}</select>` : `<select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload ? "disabled" : ""}>${["artwork", "dieline", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", dieline: "Dieline / structural reference", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select>`}<button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
+        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB${f.cameraMedia ? ' · captured artwork page' : ''}${f.captureQuality && (f.captureQuality.blur || f.captureQuality.glare) ? ' · possible blur/glare' : ''}</small></span>${sourceRevisionUpload ? `<select aria-label="Source file replaced by ${esc(f.name)}" data-replace-source="${i}">${sourceTargets.map(source => `<option value="${esc(source.id)}" ${f.replaceFileId === source.id ? "selected" : ""}>${esc({spec:"Product spec",rules:"Checklist",claims:"Claims register"}[source.role])} · ${esc(source.name)}</option>`).join("")}</select>` : `<select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload || f.cameraMedia ? "disabled" : ""}>${["artwork", "dieline", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", dieline: "Dieline / structural reference", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select>`}<button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
     )
     .join("");
 }
@@ -848,7 +853,9 @@ document.addEventListener("change", (event) => {
         file.role = target?.role || "spec";
       } else file.role = revisionUpload
         ? "artwork"
-        : /dieline|cutline|die-line/i.test(file.name)
+        : /\.(png|jpe?g|webp)$/i.test(file.name)
+          ? "artwork"
+          : /dieline|cutline|die-line/i.test(file.name)
           ? "dieline"
           : !uploads.some((f) => f.role === "artwork") &&
             /\.(pdf|png|jpe?g|webp)$/i.test(file.name)
@@ -901,20 +908,29 @@ document.addEventListener("submit", async (event) => {
   if (button) button.disabled = true;
   try {
     if (form.id === "upload-form") {
-      if (uploads.length > (revisionUpload ? 1 : 8) || !uploads.length)
-        throw new Error(sourceRevisionUpload ? "Choose at least one source file to replace." : revisionUpload ? "Choose one artwork." : "Choose up to eight files.");
+      if (!uploads.length)
+        throw new Error(sourceRevisionUpload ? "Choose at least one source file to replace." : revisionUpload ? "Choose one artwork." : "Choose an artwork or capture package faces first.");
       if (sourceRevisionUpload) {
         const replacements = uploads.map(file => file.replaceFileId);
         if (replacements.some(id => !id) || new Set(replacements).size !== replacements.length)
           throw new Error("Choose a different existing source file for each replacement.");
       }
-      if (
-        uploads.some((f) => f.size > 15000000) ||
-        uploads.reduce((n, f) => n + f.size, 0) > 30000000
-      )
-        throw new Error("Limit: 15 MB per file, 30 MB per review.");
+      let uploadFiles = [...uploads];
+      const imageArtwork = uploadFiles.filter(file => file.role === 'artwork' && (/^image\//.test(file.type) || /\.(png|jpe?g|webp)$/i.test(file.name)));
+      const otherArtwork = uploadFiles.filter(file => file.role === 'artwork' && !imageArtwork.includes(file));
+      if (imageArtwork.length && (imageArtwork.length > 1 || imageArtwork.some(file => file.cameraMedia))) {
+        if (otherArtwork.length) throw new Error('Use either one artwork PDF or captured/photo artwork pages in a review. Move extra PDFs to a reference role or remove them.');
+        const combined = await combineArtworkImagesAsPdf(imageArtwork);
+        uploadFiles = [combined, ...uploadFiles.filter(file => !imageArtwork.includes(file))];
+        combined.role = 'artwork';
+      }
+      if (uploadFiles.length > 8) throw new Error('A review can include up to eight files after its artwork pages are combined. Remove extra references or video frames.');
+      if (uploadFiles.some((f) => f.size > 15000000) || uploadFiles.reduce((n, f) => n + f.size, 0) > 30000000)
+        throw new Error('Limit: 15 MB per submitted file, 30 MB per review. Reduce the photo count or image resolution.');
+      if (uploadFiles.filter(file => file.role === 'artwork').length !== 1)
+        throw new Error('Choose exactly one artwork PDF or image. Several photos are combined into one multipage artwork automatically.');
       const files = await Promise.all(
-        uploads.map(async (f) => ({
+        uploadFiles.map(async (f) => ({
           name: f.name,
           role: f.role,
           base64: await encode(f),
