@@ -1055,6 +1055,133 @@ dialog.wide {
 .revision-row .resolved {
   color: #507938;
 }
+.source-impact > h3 {
+  margin-bottom: 6px;
+}
+.impact-section {
+  border-top: 1px solid var(--line);
+  margin-top: 16px;
+  padding-top: 15px;
+}
+.impact-section h4 {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-size: 12px;
+}
+.impact-source-list,
+.impact-findings {
+  display: grid;
+  gap: 8px;
+}
+.impact-source,
+.impact-finding,
+.impact-decision,
+.impact-change,
+.impact-rule {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 11px 13px;
+  min-width: 0;
+}
+.impact-source {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+.impact-source b,
+.impact-change > b,
+.impact-rule > b,
+.impact-finding b,
+.impact-decision b {
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.impact-source small,
+.impact-value small,
+.impact-finding small,
+.impact-decision small {
+  display: block;
+  margin-top: 4px;
+  color: #7b8773;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.impact-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 9px;
+}
+.impact-pair > section {
+  min-width: 0;
+  border-radius: 6px;
+  padding: 9px;
+  background: #f2f5ed;
+}
+.impact-pair > section:first-child {
+  background: #fbf0ed;
+}
+.impact-pair > section > small {
+  display: block;
+  margin-bottom: 5px;
+  color: #7b8773;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.impact-pair p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.impact-value b {
+  display: block;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.impact-value.empty {
+  color: #7b8773;
+  font-size: 11px;
+}
+.impact-rule .impact-tag {
+  display: inline-block;
+  margin-right: 8px;
+  border-radius: 99px;
+  padding: 3px 7px;
+  background: #edf0e8;
+  color: #53624f;
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.impact-rule.added .impact-tag {
+  background: #e8f2e2;
+  color: #507938;
+}
+.impact-rule.removed .impact-tag {
+  background: #fbebe7;
+  color: #a94e2e;
+}
+.impact-finding {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.impact-decision p {
+  margin: 6px 0;
+  color: #6d796d;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.impact-decision .textbutton {
+  margin-top: 7px;
+}
 @media (min-width: 1600px) {
   .content {
     padding-top: 45px;
@@ -1186,6 +1313,17 @@ dialog.wide {
   }
   .revision-row {
     grid-template-columns: 1fr 90px 90px;
+  }
+  .impact-source {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+  .impact-pair {
+    grid-template-columns: 1fr;
+  }
+  .impact-finding {
+    align-items: flex-start;
+    flex-direction: column;
   }
   .badge {
     font-size: 9px;
@@ -1414,6 +1552,29 @@ details > summary {
 }
 [data-theme="dark"] .revision-row .new_issue {
   color: #f1a083;
+}
+[data-theme="dark"] .impact-source,
+[data-theme="dark"] .impact-finding,
+[data-theme="dark"] .impact-decision,
+[data-theme="dark"] .impact-change,
+[data-theme="dark"] .impact-rule {
+  background: #173327;
+  border-color: var(--line);
+}
+[data-theme="dark"] .impact-pair > section,
+[data-theme="dark"] .impact-rule .impact-tag {
+  background: #254334;
+  color: #cfdfc1;
+}
+[data-theme="dark"] .impact-pair > section:first-child {
+  background: #46322d;
+}
+[data-theme="dark"] .impact-source small,
+[data-theme="dark"] .impact-value small,
+[data-theme="dark"] .impact-finding small,
+[data-theme="dark"] .impact-decision small,
+[data-theme="dark"] .impact-pair > section > small {
+  color: #a9bea3;
 }
 [data-theme="dark"] .file-chip,
 [data-theme="dark"] td,

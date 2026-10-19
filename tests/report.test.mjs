@@ -43,3 +43,35 @@ test('portable HTML contains findings, follow-up answers, and a verifiable signa
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('portable HTML report preserves source revision values, checklist changes, and reviewer rechecks', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'packproof-source-report-'));
+  try {
+    const html = await createHtmlReport({
+      name: 'Source update',
+      market: 'Example market',
+      documents: [],
+      findings: [],
+      counts: {},
+      coverage: { limits: [] },
+      audit: [],
+      revision: {
+        kind: 'sources',
+        sourceDocuments: [{ role: 'spec', name: 'spec-v2.json', beforeName: 'spec-v1.json', afterName: 'spec-v2.json', change: 'updated' }],
+        changedFacts: [{ label: 'Net quantity', before: [{ value: '750 mL' }], after: [{ value: '1000 mL' }] }],
+        changedRequirements: [{ name: 'company-checklist.json', change: 'updated', before: { text: 'Show 750 mL.' }, after: { text: 'Show 1000 mL.' } }],
+        affectedFindings: [{ title: 'Net quantity', before: 'issue', after: 'match' }],
+        decisionRechecks: [{ title: 'Net quantity', disposition: 'needs_changes', status: 'issue', currentStatus: 'match', note: 'Review current source.' }],
+        changes: [],
+      },
+    }, directory);
+    assert.match(html, /Source change impact/);
+    assert.match(html, /750 mL/);
+    assert.match(html, /1000 mL/);
+    assert.match(html, /Show 750 mL\./);
+    assert.match(html, /Earlier decisions to recheck/);
+    assert.match(html, /Review current source\./);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

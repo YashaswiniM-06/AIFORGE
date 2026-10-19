@@ -11,6 +11,7 @@ import { reviewPipeline } from "./review-pipeline.js";
 import { storageDisclosure } from "./storage-disclosure.js";
 import { engineStatusCopy } from "./engine-status-copy.js";
 import { mergeReviewSummary } from "./review-summary.js";
+import { sourceImpactView } from "./source-impact.js";
 import "./review-actions.js";
 const $ = (s) => document.querySelector(s),
   esc = (s) =>
@@ -54,7 +55,8 @@ let status = {},
   routeVersion = 0,
   reviewsRequest = null,
   uploads = [],
-  revisionUpload = false;
+  revisionUpload = false,
+  sourceRevisionUpload = false;
 let theme = "light";
 const workspaceDataLocation = storageDisclosure(location.hostname);
 try {
@@ -381,7 +383,7 @@ function renderReview() {
     return;
   }
   shell(
-    `<div class="review-heading"><div><div class="eyebrow">${r.parentId ? "ARTWORK REVISION" : "EVIDENCE-LED REVIEW"}</div><h1>${esc(r.name)}</h1><div class="subtle">${esc(r.market)} · ${esc(r.engine)} · ${date(r.createdAt)}</div></div><div class="actions"><button class="secondary" data-action="revision">↻ Review revision</button><button class="secondary" data-action="verify-seal">Verify export seal</button><a class="secondary" href="/api/reviews/${r.id}/report.html">Shareable HTML ↓</a><a class="primary" href="/api/reviews/${r.id}/report.pdf" target="_blank" rel="noopener">Export PDF ↓</a></div></div>${reviewPipeline(r,tab)}${statusCounts}${r.aiStatus === "running" ? '<div class="notice info">Local checks are ready. Multimodal intelligence is analyzing artwork and visual evidence in the background.</div>' : ""}${r.aiError ? `<div class="notice error">AI status: ${esc(r.aiError)} Exact checks completed locally.</div>` : ""}${(r.ai?.warnings||[]).map((warning) => `<div class="notice">Vision coverage note: ${esc(warning)} Untranscribed content remains unverified.</div>`).join("")}${r.ai?.transport?.cacheHit ? '<div class="notice info">Reused verified intelligence cache for identical artwork and sources. Instant audit ready.</div>' : ""}${r.signature ? `<div class="notice info">Export seal · ${esc(r.signature.algorithm)} · ${esc(r.signature.payloadHash.slice(0, 16))}…</div>` : ""}${!r.coverage.completeArtwork ? `<div class="notice">Extraction coverage is not confirmed. Missing text is marked <b>Unable to verify</b> until a reviewer checks all supplied panels. <button class="textbutton" data-action="tab" data-tab="sources">Review sources →</button></div>` : ""}<div class="tabs" role="tablist">${[
+    `<div class="review-heading"><div><div class="eyebrow">${r.revisionKind === "sources" ? "SOURCE UPDATE" : r.parentId ? "ARTWORK REVISION" : "EVIDENCE-LED REVIEW"}</div><h1>${esc(r.name)}</h1><div class="subtle">${esc(r.market)} · ${esc(r.engine)} · ${date(r.createdAt)}</div></div><div class="actions"><button class="secondary" data-action="revision">↻ Review revision</button><button class="secondary" data-action="verify-seal">Verify export seal</button><a class="secondary" href="/api/reviews/${r.id}/report.html">Shareable HTML ↓</a><a class="primary" href="/api/reviews/${r.id}/report.pdf" target="_blank" rel="noopener">Export PDF ↓</a></div></div>${reviewPipeline(r,tab)}${statusCounts}${r.aiStatus === "running" ? '<div class="notice info">Local checks are ready. Multimodal intelligence is analyzing artwork and visual evidence in the background.</div>' : ""}${r.aiError ? `<div class="notice error">AI status: ${esc(r.aiError)} Exact checks completed locally.</div>` : ""}${(r.ai?.warnings||[]).map((warning) => `<div class="notice">Vision coverage note: ${esc(warning)} Untranscribed content remains unverified.</div>`).join("")}${r.ai?.transport?.cacheHit ? '<div class="notice info">Reused verified intelligence cache for identical artwork and sources. Instant audit ready.</div>' : ""}${r.signature ? `<div class="notice info">Export seal · ${esc(r.signature.algorithm)} · ${esc(r.signature.payloadHash.slice(0, 16))}…</div>` : ""}${!r.coverage.completeArtwork ? `<div class="notice">Extraction coverage is not confirmed. Missing text is marked <b>Unable to verify</b> until a reviewer checks all supplied panels. <button class="textbutton" data-action="tab" data-tab="sources">Review sources →</button></div>` : ""}<div class="tabs" role="tablist">${[
       ["findings", "Findings"],
       ["artwork", "Artwork map"],
       ["sources", "Sources & decisions"],
@@ -458,8 +460,8 @@ function ruleView() {
 function revisionView() {
   const r = current;
   return r.revision
-    ? `${previousReview ? revisionVisual(r, previousReview) : ""}<div class="notice info">Every supported check ran again. A reviewer’s acknowledgment does not count as a correction. “Resolved” means the new artwork now matches that supplied check.</div><div class="actions" style="margin-bottom:18px"><button class="secondary" data-action="open" data-id="${r.revision.previousId}">← Open previous review</button></div><div class="panel">${r.revision.changes.map((c) => `<div class="revision-row"><div><b>${esc(c.title)}</b><div class="subtle ${c.change}">${esc(c.change.replaceAll("_", " "))}</div></div><div>${c.before ? pill(c.before) : "New check"}</div><div>${c.after ? pill(c.after) : "Not rechecked"}</div></div>`).join("")}</div>`
-    : `<div class="panel empty"><h3>A correction can introduce another mistake.</h3><p class="subtle">Upload revised artwork to rerun every check against the same sources.<br>The comparison will show resolved findings, newly failing checks, and anything no longer checked.</p><button class="primary" data-action="revision">Review revised artwork →</button></div>`;
+    ? `${r.revision.kind === "artwork" && previousReview ? revisionVisual(r, previousReview) : ""}${sourceImpactView(r.revision)}<div class="notice info">${r.revision.kind === "sources" ? "The source update reran supported checks against the retained artwork. Earlier decisions tied to changed sources are listed above for rechecking." : "Every supported check ran again. A reviewer’s acknowledgment does not count as a correction. “Resolved” means the new artwork now matches that supplied check."}</div><div class="actions" style="margin-bottom:18px"><button class="secondary" data-action="open" data-id="${r.revision.previousId}">← Open previous review</button><button class="secondary" data-action="revision">Update another input ↗</button></div><div class="panel">${r.revision.changes.map((c) => `<div class="revision-row"><div><b>${esc(c.title)}</b><div class="subtle ${c.change}">${esc(c.change.replaceAll("_", " "))}</div></div><div>${c.before ? pill(c.before) : "New check"}</div><div>${c.after ? pill(c.after) : "Not rechecked"}</div></div>`).join("")}</div>`
+    : `<div class="panel empty"><h3>Artwork, specifications, and checklists can all change.</h3><p class="subtle">Upload revised artwork to rerun every check. Or update a specification or checklist while retaining this artwork and its confirmed package mapping.</p><button class="primary" data-action="revision">Compare an update →</button></div>`;
 }
 function activityView() {
   return `<div class="panel"><div class="actions"><a class="secondary" href="/api/reviews/${current.id}/report.json">Download full JSON record ↓</a></div>${[
@@ -524,20 +526,26 @@ function usageSummary() {
   const copy = engineStatusCopy(status);
   return `<div class="panel"><h3>Engine Health & Availability</h3><p><b>Service check:</b> ${esc(copy.service)}<br><b>Provider pacing:</b> ${esc(copy.pacing)}</p>${copy.cooldownUntil ? `<div class="notice">One or more provider keys are cooling down until ${esc(date(copy.cooldownUntil))}.</div>` : ""}${copy.allowance ? `<div class="notice">${esc(copy.allowance)}</div>` : ""}<small class="subtle">${esc(copy.lastDispatch)} ${esc(copy.failover)}</small></div>`;
 }
-function showUpload(revision = false) {
+function showUpload(revision = false, sourceRevision = false) {
   uploads = [];
   revisionUpload = revision;
+  sourceRevisionUpload = sourceRevision;
+  const sourceTargets = (current?.files || []).filter(file => ["spec", "rules", "claims"].includes(file.role));
+  const sourceLabel = sourceRevision ? "Replace selected specifications or checklists" : revision ? "Choose one revised artwork" : "Choose artwork, references, and an optional dieline";
+  const accepted = sourceRevision ? ".pdf,.xlsx,.docx,.csv,.json,.txt,.md" : revision ? ".pdf,.png,.jpg,.jpeg,.webp" : ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.docx,.csv,.json,.txt,.md,.dxf";
+  const help = sourceRevision ? "PDF, XLSX, DOCX, CSV, JSON, TXT, MD · choose which existing source each file replaces" : "PDF, images, ASCII DXF (LINE / LWPOLYLINE), XLSX, DOCX, CSV, JSON, TXT, MD · 15 MB per file · 30 MB total";
   dialog(
-    revision ? "Review revised artwork" : "New artwork review",
-    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}<div class="upload-box"><b>${revision ? "Choose one revised artwork" : "Choose artwork, references, and an optional dieline"}</b><br><span class="subtle">PDF, images, ASCII DXF (LINE / LWPOLYLINE), XLSX, DOCX, CSV, JSON, TXT, MD · 15 MB per file · 30 MB total</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${revision ? ".pdf,.png,.jpg,.jpeg,.webp" : ".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.docx,.csv,.json,.txt,.md,.dxf"}" aria-label="Select files"></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">For a package-specific preview, add a dieline and confirm the artwork-face mapping under Sources after upload. DXF layer names can show cut/crease cues; the 3D package form remains illustrative. ${esc(workspaceDataLocation.uploadNotice)}</p><p id="dialog-error" class="dialog-error"></p></form>`,
-    `<button class="secondary" data-action="close">Cancel</button><button class="primary" type="submit" form="upload-form">${revision ? "Compare revision" : "Create review"} →</button>`,
+    sourceRevision ? "Update specifications or checklist" : revision ? "Review revised artwork" : "New artwork review",
+    `<form id="upload-form">${revision ? `<p class="subtle">The same references will be retained. Upload one revised artwork to recompute findings.</p>` : sourceRevision ? `<p class="subtle">The artwork and confirmed face mapping stay unchanged. Choose one or more existing specification, checklist, or claims files to replace.</p>${sourceTargets.length ? "" : '<div class="notice">This review has no replaceable source files.</div>'}` : `<div class="field"><label for="review-name">Review name</label><input id="review-name" value="New packaging review" required maxlength="120"></div><div class="field"><label for="market">Target market / scope</label><input id="market" placeholder="For example: US · supplied company checklist" maxlength="60"></div>`}<div class="upload-box"><b>${esc(sourceLabel)}</b><br><span class="subtle">${esc(help)}</span><br><input type="file" id="files" ${revision ? "" : "multiple"} accept="${accepted}" aria-label="Select files" ${sourceRevision && !sourceTargets.length ? "disabled" : ""}></div><div id="upload-list"></div>${modeSelector()}${marketSelector(revision || sourceRevision ? current.options?.marketPreset || "none" : "none")}<p class="subtle">${sourceRevision ? "Each replacement keeps the existing source role. The original review remains available in history." : `For a package-specific preview, add a dieline and confirm the artwork-face mapping under Sources after upload. DXF layer names can show cut/crease cues; the 3D package form remains illustrative. ${esc(workspaceDataLocation.uploadNotice)}`}</p><p id="dialog-error" class="dialog-error"></p></form>`,
+    `<button class="secondary" data-action="close">Cancel</button><button class="primary" type="submit" form="upload-form">${sourceRevision ? "Compare source changes" : revision ? "Compare artwork" : "Create review"} →</button>`,
   );
 }
 function uploadList() {
+  const sourceTargets = (current?.files || []).filter(file => ["spec", "rules", "claims"].includes(file.role));
   $("#upload-list").innerHTML = uploads
     .map(
       (f, i) =>
-        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB</small></span><select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload ? "disabled" : ""}>${["artwork", "dieline", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", dieline: "Dieline / structural reference", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select><button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
+        `<div class="upload-row"><span>${esc(f.name)}<small class="subtle"> · ${(f.size / 1024).toFixed(0)} KB</small></span>${sourceRevisionUpload ? `<select aria-label="Source file replaced by ${esc(f.name)}" data-replace-source="${i}">${sourceTargets.map(source => `<option value="${esc(source.id)}" ${f.replaceFileId === source.id ? "selected" : ""}>${esc({spec:"Product spec",rules:"Checklist",claims:"Claims register"}[source.role])} · ${esc(source.name)}</option>`).join("")}</select>` : `<select aria-label="Role for ${esc(f.name)}" data-upload="${i}" ${revisionUpload ? "disabled" : ""}>${["artwork", "dieline", "spec", "rules", "claims"].map((role) => `<option value="${role}" ${f.role === role ? "selected" : ""}>${{ artwork: "Artwork", dieline: "Dieline / structural reference", spec: "Product spec", rules: "Rulebook", claims: "Claims register" }[role]}</option>`).join("")}</select>`}<button type="button" data-action="remove-file" data-index="${i}" aria-label="Remove ${esc(f.name)}">×</button></div>`,
     )
     .join("");
 }
@@ -552,9 +560,9 @@ async function encode(file) {
 function revisionDialog() {
   const fictional = ["fieldday", "clean", "conflict"].includes(current.sample);
   dialog(
-    "Review a new artwork version",
-    `<p class="subtle">PackSignal will keep the source documents and run all checks again. Previous findings and decisions remain preserved in the original review.</p>${fictional ? '<div class="notice info">The fictional V2 corrects quantity and storage copy, but removes the customer-care email. It demonstrates why rechecking the entire package matters.</div>' : ""}${modeSelector()}${marketSelector(current.options?.marketPreset || "none")}<p id="dialog-error" class="dialog-error"></p>`,
-    `<button class="secondary" data-action="upload-revision">Upload revision</button>${fictional ? '<button class="primary" data-action="sample-revision">Run Fieldday V2 →</button>' : ""}`,
+    "Compare an artwork or source update",
+    `<p class="subtle">Choose what changed. Each update creates a new review linked to this one; the original evidence remains in history.</p>${fictional ? '<div class="notice info">The fictional V2 corrects quantity and storage copy, but removes the customer-care email. Its artwork and geometry stay unchanged in a source-only update.</div>' : ""}${modeSelector()}${marketSelector(current.options?.marketPreset || "none")}<p id="dialog-error" class="dialog-error"></p>`,
+    `<button class="secondary" data-action="upload-source-revision">Update specification / checklist</button><button class="secondary" data-action="upload-revision">Upload revised artwork</button>${fictional ? '<button class="primary" data-action="sample-revision">Run Fieldday V2 →</button>' : ""}`,
   );
 }
 function proof(id) {
@@ -687,6 +695,8 @@ document.addEventListener("click", async (event) => {
       "open",
       "upload",
       "revision",
+      "upload-source-revision",
+      "upload-revision",
       "settings",
       "proof",
       "select-finding",
@@ -769,6 +779,7 @@ document.addEventListener("click", async (event) => {
     if (action === "upload") showUpload();
     if (action === "revision") revisionDialog();
     if (action === "upload-revision") showUpload(true);
+    if (action === "upload-source-revision") showUpload(false, true);
     if (action === "remove-file") {
       uploads.splice(Number(b.dataset.index), 1);
       uploadList();
@@ -813,7 +824,13 @@ document.addEventListener("change", (event) => {
   if (event.target.id === "files") {
     const added = Array.from(event.target.files);
     for (const file of added) {
-      file.role = revisionUpload
+      if (sourceRevisionUpload) {
+        const targets = current.files.filter(source => ["spec", "rules", "claims"].includes(source.role));
+        const preferred = /rule|checklist|policy/i.test(file.name) ? "rules" : /claim/i.test(file.name) ? "claims" : "spec";
+        const target = targets.find(source => source.role === preferred) || targets[0];
+        file.replaceFileId = target?.id || "";
+        file.role = target?.role || "spec";
+      } else file.role = revisionUpload
         ? "artwork"
         : /dieline|cutline|die-line/i.test(file.name)
           ? "dieline"
@@ -830,6 +847,11 @@ document.addEventListener("change", (event) => {
     uploadList();
     event.target.value = "";
   }
+  if (event.target.dataset.replaceSource !== undefined) {
+    const file = uploads[Number(event.target.dataset.replaceSource)];
+    file.replaceFileId = event.target.value;
+    file.role = current.files.find(source => source.id === file.replaceFileId)?.role || "spec";
+  }
   if (event.target.dataset.upload !== undefined)
     uploads[Number(event.target.dataset.upload)].role = event.target.value;
 });
@@ -843,9 +865,12 @@ document.addEventListener("submit", async (event) => {
   try {
     if (form.id === "upload-form") {
       if (uploads.length > (revisionUpload ? 1 : 8) || !uploads.length)
-        throw new Error(
-          "Choose " + (revisionUpload ? "one artwork." : "up to eight files."),
-        );
+        throw new Error(sourceRevisionUpload ? "Choose at least one source file to replace." : revisionUpload ? "Choose one artwork." : "Choose up to eight files.");
+      if (sourceRevisionUpload) {
+        const replacements = uploads.map(file => file.replaceFileId);
+        if (replacements.some(id => !id) || new Set(replacements).size !== replacements.length)
+          throw new Error("Choose a different existing source file for each replacement.");
+      }
       if (
         uploads.some((f) => f.size > 15000000) ||
         uploads.reduce((n, f) => n + f.size, 0) > 30000000
@@ -856,12 +881,15 @@ document.addEventListener("submit", async (event) => {
           name: f.name,
           role: f.role,
           base64: await encode(f),
+          ...(sourceRevisionUpload ? { replacesFileId: f.replaceFileId } : {}),
         })),
       );
       const r = await api("/reviews", {
         method: "POST",
         body: {
-          ...(revisionUpload
+          ...(sourceRevisionUpload
+            ? { parentId: current.id, sourceRevision: true }
+            : revisionUpload
             ? { parentId: current.id }
             : { name: $("#review-name").value, market: $("#market").value }),
           files,
@@ -873,7 +901,7 @@ document.addEventListener("submit", async (event) => {
         },
       });
       $("#dialog").close();
-      tab = revisionUpload ? "revisions" : "findings";
+      tab = revisionUpload || sourceRevisionUpload ? "revisions" : "findings";
       filter = "all";
       await openReview(r.id);
     }

@@ -210,6 +210,45 @@ test('identifies a new issue introduced in a revision', () => {
   assert.equal(result.changes[0].change, 'new_issue');
 });
 
+test('source revision comparison traces changed values, checklist requirements, findings, and prior decisions', () => {
+  const documents = (specHash, ruleHash) => [
+    { id: 'art', name: 'carton.pdf', role: 'artwork', sha256: 'a'.repeat(64) },
+    { id: 'spec', name: 'product-spec.json', role: 'spec', sha256: specHash },
+    { id: 'rules', name: 'company-checklist.json', role: 'rules', sha256: ruleHash },
+    { id: 'claims', name: 'claims.json', role: 'claims', sha256: 'c'.repeat(64) },
+  ];
+  const previous = {
+    id: 'source-v1', documents: documents('b'.repeat(64), 'd'.repeat(64)),
+    facts: [{ documentId: 'spec', field: 'net_quantity', label: 'Net quantity', value: '750 mL', evidence: { documentId: 'spec', name: 'product-spec.json', location: 'product.net_quantity' } }],
+    rules: [{ id: 'rules:quantity', title: 'Net quantity', text: 'The artwork must show 750 mL.', source: { documentId: 'rules', location: 'net-quantity' } }],
+    findings: [
+      { id: 'quantity-check', key: 'rule:quantity', title: 'Net quantity', status: 'issue', evidence: [{ documentId: 'art', role: 'artwork' }, { documentId: 'spec', role: 'spec' }, { documentId: 'rules', role: 'rules' }] },
+      { id: 'claim-check', key: 'claims', title: 'Claim substantiation', status: 'review', evidence: [{ documentId: 'claims', role: 'claims' }] },
+    ],
+    decisions: {
+      'quantity-check': { disposition: 'needs_changes', note: 'Update pack quantity.' },
+      'claim-check': { disposition: 'acknowledged', note: 'Evidence reviewed.' },
+    },
+  };
+  const current = {
+    id: 'source-v2', revisionKind: 'sources', documents: documents('e'.repeat(64), 'f'.repeat(64)),
+    facts: [{ documentId: 'spec', field: 'net_quantity', label: 'Net quantity', value: '1000 mL', evidence: { documentId: 'spec', name: 'product-spec.json', location: 'product.net_quantity' } }],
+    rules: [{ id: 'rules:quantity', title: 'Net quantity', text: 'The artwork must show 1000 mL.', source: { documentId: 'rules', location: 'net-quantity' } }],
+    findings: [
+      { id: 'quantity-check', key: 'rule:quantity', title: 'Net quantity', status: 'match', evidence: [{ documentId: 'art', role: 'artwork' }, { documentId: 'spec', role: 'spec' }, { documentId: 'rules', role: 'rules' }] },
+      { id: 'claim-check', key: 'claims', title: 'Claim substantiation', status: 'review', evidence: [{ documentId: 'claims', role: 'claims' }] },
+    ],
+  };
+  const result = compareRevisions(previous, current);
+  assert.equal(result.kind, 'sources');
+  assert.deepEqual(result.sourceDocuments.map(item => item.role).sort(), ['rules', 'spec']);
+  assert.deepEqual(result.changedFacts.map(item => [item.label, item.before[0].value, item.after[0].value]), [['Net quantity', '750 mL', '1000 mL']]);
+  assert.deepEqual(result.changedRequirements.map(item => [item.change, item.before.text, item.after.text]), [['updated', 'The artwork must show 750 mL.', 'The artwork must show 1000 mL.']]);
+  assert.deepEqual(result.affectedFindings.map(item => item.id), ['quantity-check']);
+  assert.deepEqual(result.decisionRechecks.map(item => [item.findingId, item.currentFindingId, item.disposition]), [['quantity-check', 'quantity-check', 'needs_changes']]);
+  assert.equal(result.changes.find(item => item.id === 'quantity-check').change, 'resolved');
+});
+
 test('measures an extracted text box in millimeters', () => {
   assert.ok(Math.abs(estimatedHeightMm({ height: 720 }, [0, 0.9, 1, 0.91]) - 2.54) < 0.000001);
 });

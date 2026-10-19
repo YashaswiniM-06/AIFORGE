@@ -74,7 +74,7 @@ try {
     'The browser must not contain key-entry or key-clear controls.');
   assert.match(clientScript, /AI assisted · recommended/,
     'AI-assisted review should be the default mode.');
-  for (const asset of ['/app.js', '/artwork-ui.js', '/dieline-layout.js', '/walkthrough.js', '/styles.css']) {
+  for (const asset of ['/app.js', '/artwork-ui.js', '/dieline-layout.js', '/source-impact.js', '/walkthrough.js', '/styles.css']) {
     const response = await fetch(`${base}${asset}`);
     assert.equal(response.status, 200, `${asset} is served`);
   }
@@ -158,7 +158,12 @@ try {
         {
           name: 'product-spec.json',
           role: 'spec',
-          base64: Buffer.from(JSON.stringify({ product_name: 'Smoke-test product', net_quantity: '100 g' })).toString('base64'),
+          base64: Buffer.from(JSON.stringify({ product: { product_name: 'Smoke-test product', net_quantity: '100 g' } })).toString('base64'),
+        },
+        {
+          name: 'manufacturer-reference.json',
+          role: 'spec',
+          base64: Buffer.from(JSON.stringify({ product: { manufacturer: 'Smoke Foods LLC' } })).toString('base64'),
         },
       ],
     }),
@@ -191,6 +196,61 @@ try {
   }));
   assert.equal(mapped.options.packageType, 'pouch');
   assert.equal(mapped.options.packageMappingConfirmed, true, 'Only an explicit confirmation with a front artwork crop enables the package preview.');
+  const reloadedMapped = await json(await fetch(`${base}/api/reviews/${mapped.id}`));
+  assert.equal(reloadedMapped.options.packageMappingConfirmed, true, `The saved package mapping must remain current on reload: ${JSON.stringify({ fingerprint: mapped.options.confirmationFingerprints?.packageMappingConfirmed, reloadedFingerprint: reloadedMapped.options.confirmationFingerprints?.packageMappingConfirmed, stale: reloadedMapped.options.staleConfirmations, panelZones: reloadedMapped.options.panelZones, packageType: reloadedMapped.options.packageType })}`);
+  const sourceDocument = mapped.documents.find(document => document.role === 'spec');
+  const dependentFinding = mapped.findings.find(finding => finding.evidence.some(item => item.documentId === sourceDocument.id));
+  assert.ok(dependentFinding, 'The smoke sample has a finding tied to its product specification.');
+  const unchangedSource = mapped.documents.find(document => document.name === 'manufacturer-reference.json');
+  const unaffectedFinding = mapped.findings.find(finding => finding.id !== dependentFinding.id && finding.evidence.some(item => item.documentId === unchangedSource.id));
+  assert.ok(unaffectedFinding, 'The smoke sample has a separate finding tied to an unchanged source.');
+  const priorDecision = await json(await fetch(`${base}/api/reviews/${mapped.id}/decisions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({ findingId: dependentFinding.id, disposition: 'needs_changes', note: 'Recheck after source update.' }),
+  }));
+  assert.equal(priorDecision.decisions[dependentFinding.id].disposition, 'needs_changes');
+  const unaffectedDecision = await json(await fetch(`${base}/api/reviews/${mapped.id}/decisions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({ findingId: unaffectedFinding.id, disposition: 'acknowledged', note: 'Unchanged source reviewed.' }),
+  }));
+  assert.equal(unaffectedDecision.decisions[unaffectedFinding.id].disposition, 'acknowledged');
+  const sourceUpdate = await json(await fetch(`${base}/api/reviews`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
+    body: JSON.stringify({
+      parentId: mapped.id,
+      sourceRevision: true,
+      mode: 'local',
+      options: { marketPreset: 'none' },
+      files: [{
+        replacesFileId: sourceDocument.id,
+        name: 'product-spec-v2.json',
+        role: 'spec',
+        base64: Buffer.from(JSON.stringify({ product: { product_name: 'Smoke-test product', net_quantity: '150 g' } })).toString('base64'),
+      }],
+    }),
+  }));
+  const sourceDeadline = Date.now() + 120_000;
+  let sourceUpdatedReview;
+  while (Date.now() < sourceDeadline) {
+    sourceUpdatedReview = await json(await fetch(`${base}/api/reviews/${sourceUpdate.id}`));
+    if (sourceUpdatedReview.status === 'ready' || sourceUpdatedReview.status === 'failed') break;
+    await new Promise(resolve => setTimeout(resolve, 300));
+  }
+  assert.equal(sourceUpdatedReview?.status, 'ready', sourceUpdatedReview?.error || 'Source update did not finish.');
+  assert.equal(sourceUpdatedReview.revision.kind, 'sources');
+  assert.equal(sourceUpdatedReview.options.packageType, mapped.options.packageType);
+  assert.deepEqual(sourceUpdatedReview.options.panelZones, mapped.options.panelZones, 'Source revisions retain the confirmed artwork face mapping.');
+  assert.equal(sourceUpdatedReview.options.packageMappingConfirmed, true, `Source revisions keep the unchanged package geometry confirmation: ${JSON.stringify({ before: { fingerprint: mapped.options.confirmationFingerprints?.packageMappingConfirmed, zones: mapped.options.panelZones, packageType: mapped.options.packageType, documents: mapped.documents.map(document => [document.id, document.role, document.sha256, document.pages?.map(page => [page.number, page.image, page.method])]) }, after: { fingerprint: sourceUpdatedReview.options.confirmationFingerprints?.packageMappingConfirmed, zones: sourceUpdatedReview.options.panelZones, packageType: sourceUpdatedReview.options.packageType, stale: sourceUpdatedReview.options.staleConfirmations, documents: sourceUpdatedReview.documents.map(document => [document.id, document.role, document.sha256, document.pages?.map(page => [page.number, page.image, page.method])]) } })}`);
+  assert.equal(sourceUpdatedReview.documents.find(document => document.role === 'artwork').sha256, mapped.documents.find(document => document.role === 'artwork').sha256);
+  assert.ok(sourceUpdatedReview.revision.changedFacts.some(change => change.field === 'net_quantity' && change.before.some(value => value.value === '100 g') && change.after.some(value => value.value === '150 g')), `Source value diff should expose the quantity change: ${JSON.stringify({ changes: sourceUpdatedReview.revision.changedFacts, beforeFacts: mapped.facts.filter(fact => fact.field === 'net_quantity'), afterFacts: sourceUpdatedReview.facts.filter(fact => fact.field === 'net_quantity') })}`);
+  assert.ok(sourceUpdatedReview.revision.affectedFindings.some(finding => finding.id === dependentFinding.id));
+  assert.ok(sourceUpdatedReview.revision.decisionRechecks.some(decision => decision.findingId === dependentFinding.id && decision.disposition === 'needs_changes'));
+  assert.equal(sourceUpdatedReview.decisions[dependentFinding.id], undefined, 'An affected prior decision must be reviewed again on the new source version.');
+  assert.ok(sourceUpdatedReview.decisions[unaffectedFinding.id]?.carriedFrom, 'An unaffected decision should carry forward with its lineage.');
+  assert.equal(sourceUpdatedReview.decisions[unaffectedFinding.id]?.stale, false);
   const stale = await json(await fetch(`${base}/api/reviews/${uploaded.id}/sources`, {
     method: 'POST',
     headers: { 'content-type': 'application/json', 'x-packproof-token': status.csrf },
@@ -238,6 +298,7 @@ try {
       'ASCII DXF linework extraction, layer semantics, closed-panel suggestions, and SVG preview delivery',
       'new image upload review without guessed packaging panel geometry',
       'dieline upload, reviewer-confirmed pouch mapping, and stale-map invalidation',
+      'source-only revision with changed value diffs, affected findings, decision rechecks, and retained package geometry',
       'reviewer decision and audit event',
       'portable HTML report and signed proof verification',
       'PDF report generation',

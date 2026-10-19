@@ -13,6 +13,7 @@ import { createHtmlReport } from './lib/html-report.mjs';
 import { sealReview, verifyReviewSeal } from './lib/audit-signature.mjs';
 import { answerFindingQuestion } from './lib/finding-qa.mjs';
 import { publicFiles, createPublicFileSender } from './lib/public-files.mjs';
+import { buildSourceRevisionInputs } from './lib/source-revision-inputs.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const sendPublicFile=createPublicFileSender(join(root,'public'));
@@ -80,6 +81,17 @@ function refreshDependencies(r){
     if(!finding||!decision.dependencyHash||decision.dependencyHash!==findingDependencyFingerprint(r,finding))decision.stale=true;
   }
 }
+function carryForwardUnaffectedSourceDecisions(previous,current){
+  if(current.revision?.kind!=='sources')return;
+  const recheckIds=new Set(current.revision.decisionRechecks.map(item=>item.findingId));
+  for(const [findingId,decision] of Object.entries(previous.decisions||{})){
+    if(recheckIds.has(findingId)||decision.stale)continue;
+    const oldFinding=previous.findings.find(item=>item.id===findingId);
+    const nextFinding=current.findings.find(item=>item.id===findingId)||(oldFinding?.key?current.findings.find(item=>item.key===oldFinding.key):null);
+    if(!nextFinding)continue;
+    current.decisions[nextFinding.id]={...structuredClone(decision),stale:false,dependencyHash:findingDependencyFingerprint(current,nextFinding),carriedFrom:{reviewId:previous.id,findingId}};
+  }
+}
 function panelZones(value, artwork){
   if(value===undefined)return undefined;
   if(typeof value==='string'){try{value=JSON.parse(value);}catch{throw fail('Panel zones must contain valid JSON.');}}
@@ -140,7 +152,7 @@ async function processReview(id){
     for(const file of r.files){r.documents.push(await worker({path:join(dir(id),'files',file.disk),role:file.role,outdir:join(dir(id),'rendered'),id:file.id,name:file.name}));}
     r.warnings=r.documents.flatMap(d=>d.warnings.map(w=>d.name+': '+w));r.engine='Local extraction + exact comparisons';
     r.aiStatus=r.mode==='ai'?'pending':'not_requested';
-    refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId)r.revision=compareRevisions(await load(r.parentId),r);
+    refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId){const previous=await load(r.parentId);r.revision=compareRevisions(previous,r);carryForwardUnaffectedSourceDecisions(previous,r);}
     r.status='ready';r.progress='Local checks complete';r.finishedAt=new Date().toISOString();audit(r,'local_analysis_completed',`${r.findings.length} findings; ${r.engine}`);await save(r);
 
     if(r.mode==='ai'){
@@ -183,7 +195,7 @@ async function processReview(id){
           r.warnings.push(...(r.ai.warnings||[]));
           audit(r,cacheHit?'ai_cache_reused':'ai_request_completed',cacheHit?'Saved complete intelligence result reused for identical files, roles, and model. No provider request.':`Packaging intelligence processed ${r.ai.imagePagesSent} image page(s) using ${r.ai.transport.requests} request(s) and ${r.ai.transport.attempts} outbound attempt(s).`);
           for(const t of r.ai.transcriptions){const d=r.documents.find(d=>d.id===t.documentId),p=d?.pages.find(p=>p.number===t.page);if(p&&typeof t.text==='string'&&t.text.length<50000){p.visualText=t.text;if(p.method==='vision_needed'){p.text=t.text;p.method='ai_transcription';d.lines.push(...t.text.split('\n').filter(Boolean).map(text=>({text,page:p.number,box:null})));d.text=d.pages.map(p=>p.text).join('\n');}}}
-          clearSeal(r);r.engine='Packaging Intelligence + exact comparisons';r.aiStatus='complete';r.progress='Intelligence and local review complete';refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId)r.revision=compareRevisions(await load(r.parentId),r);audit(r,'analysis_completed',`${r.findings.length} findings; ${r.engine}`);await save(r);
+          clearSeal(r);r.engine='Packaging Intelligence + exact comparisons';r.aiStatus='complete';r.progress='Intelligence and local review complete';refreshDependencies(r);Object.assign(r,analyze(r));if(r.parentId){const previous=await load(r.parentId);r.revision=compareRevisions(previous,r);carryForwardUnaffectedSourceDecisions(previous,r);}audit(r,'analysis_completed',`${r.findings.length} findings; ${r.engine}`);await save(r);
         }catch(error){
           r=await load(id);clearSeal(r);r.aiStatus='unavailable';r.aiError=error.name==='TimeoutError'?'Intelligence request timed out.':error.message;r.aiFailure={code:error.code||'AI_UNAVAILABLE',retryAt:error.retryAt||null};r.warnings.push('Packaging intelligence unavailable: '+r.aiError+' Local checks remain available.');r.progress='Local review complete; Intelligence engine unavailable';audit(r,'ai_unavailable',r.aiError);await save(r);
         }
@@ -201,18 +213,34 @@ async function createReview(input){
     let files=input.files;
     if(input.parentId){
       const previous=await load(input.parentId);if(previous.status!=='ready')throw fail('The previous review is not ready.');
-      r.parentId=previous.id;r.name=previous.name+' · revision';r.market=previous.market;r.sample=previous.sample;r.options={...previous.options,marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none',completeArtwork:input.options?.completeArtwork===true,panelPlacementConfirmed:false,packageMappingConfirmed:false,panelZones:sampleZones(previous.sample),...(['fieldday','clean','conflict','signals'].includes(previous.sample)?{panelZoneSource:'authored synthetic sample geometry'}:{}),nutritionBasisConfirmed:false,netQuantityConfirmed:false,...(input.mode==='ai'?{aiRulesConfirmed:false}:{})};
-      const references=previous.files.filter(f=>f.role!=='artwork');
-      let revised=input.files;
-      if(input.sampleRevision){if(!['fieldday','clean','conflict'].includes(previous.sample))throw fail('The sample revision is only available for Fieldday.');revised=[{name:'fieldday-v2.pdf',role:'artwork',base64:(await readFile(join(root,'samples/fieldday-v2/artwork/fieldday-v2.pdf'))).toString('base64')}];}
-      if(!Array.isArray(revised)||revised.length!==1||revised[0].role!=='artwork')throw fail('Supply exactly one revised artwork.');
-      files=[...revised,...await Promise.all(references.map(async f=>({name:f.name,role:f.role,base64:(await readFile(join(dir(previous.id),'files',f.disk))).toString('base64')})))];
-      r.files=await writeInputs(r,files);references.forEach((f,i)=>{r.files[i+1].id=f.id;});
+      r.parentId=previous.id;r.market=previous.market;r.sample=previous.sample;
+      if(input.sourceRevision===true){
+        r.revisionKind='sources';r.name=previous.name+' · source update';r.mode=input.mode==='local'?'local':'ai';r.options={...structuredClone(previous.options),marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none'};
+        r.documents=structuredClone(previous.documents);
+        if(previous.ai){
+          r.ai=structuredClone(previous.ai);
+          const replacedIds=new Set((input.files||[]).map(file=>file.replacesFileId));
+          for(const key of ['facts','rules','transcriptions','sentPages','unverifiedPages','omittedPages'])if(Array.isArray(r.ai[key]))r.ai[key]=r.ai[key].filter(item=>!replacedIds.has(item.documentId));
+          const replacedNames=new Set(previous.files.filter(file=>replacedIds.has(file.id)).map(file=>file.name));
+          if(Array.isArray(r.ai.warnings))r.ai.warnings=r.ai.warnings.filter(warning=>![...replacedNames].some(name=>warning.includes(name)));
+          delete r.ai.transport;
+        }
+        files=await buildSourceRevisionInputs(previous.files,input.files,async file=>readFile(join(dir(previous.id),'files',file.disk)));
+        r.files=await writeInputs(r,files);r.files.forEach((file,index)=>{file.id=previous.files[index].id;});
+      }else{
+        r.revisionKind='artwork';r.name=previous.name+' · revision';r.options={...previous.options,marketPreset:input.options?.marketPreset??previous.options.marketPreset??'none',completeArtwork:input.options?.completeArtwork===true,panelPlacementConfirmed:false,packageMappingConfirmed:false,panelZones:sampleZones(previous.sample),...(['fieldday','clean','conflict','signals'].includes(previous.sample)?{panelZoneSource:'authored synthetic sample geometry'}:{}),nutritionBasisConfirmed:false,netQuantityConfirmed:false,...(input.mode==='ai'?{aiRulesConfirmed:false}:{})};
+        const references=previous.files.filter(f=>f.role!=='artwork');
+        let revised=input.files;
+        if(input.sampleRevision){if(!['fieldday','clean','conflict'].includes(previous.sample))throw fail('The sample revision is only available for Fieldday.');revised=[{name:'fieldday-v2.pdf',role:'artwork',base64:(await readFile(join(root,'samples/fieldday-v2/artwork/fieldday-v2.pdf'))).toString('base64')}];}
+        if(!Array.isArray(revised)||revised.length!==1||revised[0].role!=='artwork')throw fail('Supply exactly one revised artwork.');
+        files=[...revised,...await Promise.all(references.map(async f=>({name:f.name,role:f.role,base64:(await readFile(join(dir(previous.id),'files',f.disk))).toString('base64')})))];
+        r.files=await writeInputs(r,files);references.forEach((f,i)=>{r.files[i+1].id=f.id;});
+      }
     }else{
       if(input.sample){if(!samples[input.sample])throw fail('Unknown sample.');r.sample=input.sample;r.name=input.sample==='organizer'?'Dancing Fish · Berry Crunch':input.sample==='clean'?'Fieldday · clean baseline':input.sample==='conflict'?'Fieldday · conflicting sources':input.sample==='signals'?'Fieldday · language and code signals':'Fieldday · artwork V1';r.market=input.sample==='organizer'?'United States':'Fictional company checklist';r.options.panelZones=sampleZones(input.sample);if(Object.keys(r.options.panelZones).length)r.options.panelZoneSource='authored synthetic sample geometry';files=await Promise.all(samples[input.sample].map(async([path,role])=>({name:basename(path),role,base64:(await readFile(join(root,path))).toString('base64')})));}
       r.files=await writeInputs(r,files);
     }
-    audit(r,'review_created',r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.');await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;
+    audit(r,'review_created',r.revisionKind==='sources'?'Updated source documents; artwork and confirmed geometry retained.':r.parentId?'Revised artwork; source documents retained.':'Files supplied for review.');await save(r);jobs.add(r.id);queue=queue.then(()=>processReview(r.id)).catch(()=>{});return r;
   }catch(error){await rm(dir(r.id),{recursive:true,force:true});throw error;}
 }
 for(const id of await readdir(join(storage,'reviews'))){try{const r=await readReview(id);if(['queued','processing'].includes(r.status)){r.status='failed';r.error='The server stopped during processing. Create a new review to retry.';await save(r);}}catch{}}
