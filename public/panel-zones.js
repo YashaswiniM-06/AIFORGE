@@ -39,10 +39,17 @@ function dielinePagePreview(review, dieline, type, pageNumber) {
     return `<div class="dieline-suggestion-zone ${escape(face)}" style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>${escape(packageFaceLabel(type, face))}</span></div>`;
   }).join('');
   const folds = suggestion.folds.filter(item => item.page === page.number).map(fold => {
-    const position = fold.axis === 'horizontal' ? `top:${fold.position*100}%` : `left:${fold.position*100}%`;
-    return `<div class="dieline-fold ${fold.axis}" style="${position}" aria-hidden="true"></div>`;
+    const extent = fold.extent || [0, 1];
+    const position = fold.axis === 'horizontal'
+      ? `top:${fold.position*100}%;left:${extent[0]*100}%;width:${(extent[1]-extent[0])*100}%;right:auto`
+      : `left:${fold.position*100}%;top:${extent[0]*100}%;height:${(extent[1]-extent[0])*100}%;bottom:auto`;
+    return `<div class="dieline-fold ${fold.axis} ${fold.source ? 'candidate-edge' : ''}" style="${position}" aria-hidden="true"></div>`;
   }).join('');
-  return { suggestion, html: `<div class="dieline-suggestion-stage"><img data-dieline-image src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="Uploaded dieline page ${page.number} with unconfirmed face suggestions"><div data-dieline-overlay>${overlays}${folds}</div></div>` };
+  const candidateRegions = Object.keys(suggestion.zones).length ? [] : suggestion.candidateRegions.filter(region => region.page === page.number).map((region, index) => {
+    const [x0, y0, x1, y1] = region.box;
+    return `<div class="dieline-suggestion-zone unlabelled" style="left:${x0*100}%;top:${y0*100}%;width:${(x1-x0)*100}%;height:${(y1-y0)*100}%"><span>${escape(region.label || `Unlabelled region ${index+1}`)}</span></div>`;
+  }).join('');
+  return { suggestion, html: `<div class="dieline-suggestion-stage"><img data-dieline-image src="/api/reviews/${encodeURIComponent(review.id)}/images/${encodeURIComponent(page.image)}" alt="Uploaded dieline page ${page.number} with unconfirmed face and line suggestions"><div data-dieline-overlay>${overlays}${candidateRegions}${folds}</div></div>` };
 }
 
 function dielineMapper(review, zones) {
@@ -56,7 +63,7 @@ function dielineMapper(review, zones) {
   return `<section class="package-mapping panel" data-package-mapping>
     <div class="eyebrow">DIELINE-AWARE PACKAGE PREVIEW</div>
     <h3>Suggest faces, then confirm the mapping</h3>
-    <p class="subtle">Suggestions use positioned face labels from the supplied dieline. Dashed lines are inferred panel boundaries, not detected crease or cut paths. Inspect every crop against both files; the 3D preview stays hidden until you confirm.</p>
+    <p class="subtle">Positioned labels suggest face identities. For image-only or unlabeled dielines, long straight strokes outline candidate regions. Line style alone cannot distinguish cut from crease. Inspect the original and map the matching artwork crops; the 3D preview stays hidden until you confirm.</p>
     <div class="package-mapping-controls">
       <label>Package type<select name="packageType" data-package-type>${packageTypes.map(item => `<option value="${item.id}" ${item.id === type ? 'selected' : ''}>${item.label}</option>`).join('')}</select></label>
       ${dieline.pages.length > 1 ? `<label>Dieline page<select data-dieline-page>${dieline.pages.map(item => `<option value="${item.number}" ${item.number === page.number ? 'selected' : ''}>Page ${item.number}</option>`).join('')}</select></label>` : ''}

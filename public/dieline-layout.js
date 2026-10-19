@@ -57,6 +57,9 @@ export function suggestDielineMapping(document, type = 'carton') {
     .filter(item => item.face && selected.faces.includes(item.face));
   const zones = {};
   const folds = [];
+  const edges = (document?.structuralEdges || [])
+    .filter(item => Number.isInteger(item.page) && ['vertical', 'horizontal'].includes(item.axis) && Number.isFinite(item.position))
+    .map(item => ({ ...item, position: Math.max(0, Math.min(1, item.position)), extent: Array.isArray(item.extent) ? item.extent.map(value => Math.max(0, Math.min(1, Number(value) || 0))) : [0, 1] }));
   const byPage = new Map();
   for (const label of labels) {
     if (!byPage.has(label.page)) byPage.set(label.page, []);
@@ -88,15 +91,41 @@ export function suggestDielineMapping(document, type = 'carton') {
     }
   }
 
+  for (const edge of edges) {
+    if (!folds.some(fold => fold.page === edge.page && fold.axis === edge.axis && Math.abs(fold.position - edge.position) < 0.015)) {
+      folds.push({ page: edge.page, axis: edge.axis, position: edge.position, extent: edge.extent, source: edge.source || 'rendered line candidate' });
+    }
+  }
+
+  const candidateRegions = [];
+  for (const page of [...new Set(edges.map(edge => edge.page))]) {
+    const vertical = [...new Set(edges.filter(edge => edge.page === page && edge.axis === 'vertical').map(edge => edge.position))].sort((a, b) => a - b);
+    const horizontal = [...new Set(edges.filter(edge => edge.page === page && edge.axis === 'horizontal').map(edge => edge.position))].sort((a, b) => a - b);
+    const verticalSpans = edges.filter(edge => edge.page === page && edge.axis === 'vertical').flatMap(edge => edge.extent || []);
+    const xs = vertical.length >= 2 ? vertical : [0, 1];
+    const ys = horizontal.length >= 2 ? horizontal : verticalSpans.length >= 2 ? [Math.min(...verticalSpans), Math.max(...verticalSpans)] : [0, 1];
+    let index = 1;
+    for (let row = 0; row < ys.length - 1; row++) for (let column = 0; column < xs.length - 1; column++) {
+      const box = [xs[column], ys[row], xs[column + 1], ys[row + 1]];
+      if (box[2] - box[0] < 0.04 || box[3] - box[1] < 0.08) continue;
+      candidateRegions.push({ page, box, label: `Unlabelled region ${index++}` });
+      if (candidateRegions.length >= 24) break;
+    }
+  }
+
   return {
     type: selected.id,
     faces: selected.faces.map(face => ({ face, label: packageFaceLabel(selected.id, face), suggested: Boolean(zones[face]) })),
     zones,
     folds,
+    edges,
+    candidateRegions,
     labelCount: labels.length,
     pages: [...new Set(labels.map(item => item.page))],
     note: labels.length
-      ? 'Face labels are extracted from the dieline. Regions and fold cues are coarse layout suggestions; inspect them against the actual cut and crease lines before use.'
-      : 'No positioned face labels were found. The package type suggests which faces to map, but no coordinates or folds have been guessed.',
+      ? 'Positioned face labels suggest identities. Long straight strokes add boundary cues; line style alone cannot tell cut from crease. Inspect every suggestion against the source before use.'
+      : edges.length
+        ? `${edges.length} long straight line candidates and ${candidateRegions.length} unlabelled regions were found. They are visual cues only; assign faces manually and verify cut versus crease in the source.`
+        : 'No positioned face labels or clear long straight lines were found. The package type lists faces, but their positions still need manual mapping.',
   };
 }

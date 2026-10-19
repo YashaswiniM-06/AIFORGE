@@ -349,6 +349,7 @@
 .zone-stage .panel-zone.selected-face span{background:#745719;color:#fff;transform:none;font-size:10px}
 .next-question{color:#243d31}
 .dieline-fold.horizontal{left:0;right:0;bottom:auto;border-left:0;border-top:2px dashed #dd5b47}
+.dieline-fold.candidate-edge{border-color:#5684a6;border-style:dotted;opacity:.95}.dieline-fold.horizontal.candidate-edge{border-left:0;border-top:2px dotted #5684a6}.dieline-suggestion-zone.unlabelled{border-color:#5684a6;border-style:dotted;background:#5684a620}.dieline-suggestion-zone.unlabelled span{background:#233d50e8}
 @media(max-width:640px){.zone-face-preview{gap:14px;padding:14px}.zone-preview-copy strong{font-size:14px}}
 
 /* Reviewer-confirmed previews for additional package forms. */

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 const storage = await mkdtemp(join(tmpdir(), 'packsignal-smoke-'));
 const keys = { GEMINI_API_KEY: ' ', GEMINI_API_KEY_2: ' ', GEMINI_API_KEY_3: ' ', GEMINI_API_KEY_4: ' ', GEMINI_API_KEY_5: ' ' };
+const lineArtDieline = 'iVBORw0KGgoAAAANSUhEUgAAASwAAADIAQAAAAB6pOH4AAAAW0lEQVR42u3ZMQ6AMAgFUKrey/tPXqXG1aQOhqEb6fz+AiQvYWCkjSjk3qIUbI1F5Qp7Ly89R+b6y5vzk013BQzDMAzDMAzDMAzDMAzDMAzDMMyvbc4Rzf90iX0smiwhw6xoAwAAAABJRU5ErkJggg==';
 let child;
 let output = '';
 
@@ -119,7 +120,7 @@ try {
         {
           name: 'new-dieline.png',
           role: 'dieline',
-          base64: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jg4QAAAAASUVORK5CYII=',
+          base64: lineArtDieline,
         },
         {
           name: 'product-spec.json',
@@ -142,6 +143,8 @@ try {
   assert.equal(uploadedReview.options.panelZoneSource, undefined, 'New uploads must not claim an automated panel map.');
   assert.ok(uploadedReview.documents.some(document => document.role === 'dieline'));
   assert.equal(uploadedReview.options.packageType, 'carton');
+  const dieline = uploadedReview.documents.find(document => document.role === 'dieline');
+  assert.ok(dieline.structuralEdges.length >= 5, 'An unlabeled image dieline exposes detected long-line candidates.');
   assert.equal(uploadedReview.options.packageMappingConfirmed, false, 'A dieline upload must not show a package-specific 3D preview before reviewer confirmation.');
   const mapped = await json(await fetch(`${base}/api/reviews/${uploaded.id}/sources`, {
     method: 'POST',

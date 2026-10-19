@@ -21,11 +21,54 @@ def scan_codes(image):
     except Exception:
         return [], 'Local barcode scanner could not read this rendered page; code presence remains unverified.'
 
+def detect_structural_edges(image):
+    """Suggest long straight dieline strokes from a rendered page, without classifying cut vs fold."""
+    try:
+        from PIL import ImageFilter
+        gray=image.convert('L')
+        gray.thumbnail((720,720))
+        width,height=gray.size
+        if width<80 or height<80:return []
+        # Avoid interpreting a printed/color-heavy artwork page as a structural drawing.
+        dark=gray.point(lambda value:255 if value<155 else 0)
+        if dark.histogram()[255]/max(1,width*height)>.34:return []
+        # Thicken hairlines slightly so antialiasing does not break a stroke into gaps.
+        dark=dark.filter(ImageFilter.MaxFilter(3));pixels=dark.load()
+        edges=[]
+        def scan(axis,positions,span):
+            found=[];gap_limit=max(3,round(span*.012))
+            for position in range(positions):
+                run=hits=longest=gap=0;first=last=None
+                for offset in range(span):
+                    hit=any(pixels[min(width-1,max(0,position+delta)),offset] for delta in (-1,0,1)) if axis=='vertical' else any(pixels[offset,min(height-1,max(0,position+delta))] for delta in (-1,0,1))
+                    if hit:
+                        if first is None:first=offset
+                        last=offset;hits+=1;gap=0;run=(run or 0)+1;longest=max(longest,run)
+                    elif run is not None:
+                        gap+=1
+                        if gap>gap_limit:run=None;gap=0
+                if hits>=span*.22 and longest>=span*.18 and first is not None and last-first>=span*.2:
+                    found.append((position,first,last))
+            groups=[]
+            for item in found:
+                if not groups or item[0]-groups[-1][-1][0]>4:groups.append([item])
+                else:groups[-1].append(item)
+            for group in groups:
+                position=round(sum(item[0] for item in group)/len(group));start=min(item[1] for item in group);end=max(item[2] for item in group)
+                if axis=='vertical':edges.append(dict(axis=axis,position=position/width,extent=[start/height,end/height],source='rendered line candidate'))
+                else:edges.append(dict(axis=axis,position=position/height,extent=[start/width,end/width],source='rendered line candidate'))
+        scan('vertical',width,height)
+        scan('horizontal',height,width)
+        return edges[:80]
+    except Exception:
+        # Structural suggestions are optional. Extraction and ordinary review must still complete.
+        return []
+
 def extract(path, role, outdir, artifact_id, name):
     from PIL import Image, ImageOps
     p = Path(path); out = Path(outdir); out.mkdir(parents=True, exist_ok=True)
     doc = dict(id=artifact_id, name=name, role=role, sha256=hashlib.sha256(p.read_bytes()).hexdigest(),
-               bytes=p.stat().st_size, pages=[], cells=[], lines=[], panelLabels=[], warnings=[], text='', data=None)
+               bytes=p.stat().st_size, pages=[], cells=[], lines=[], panelLabels=[], structuralEdges=[], warnings=[], text='', data=None)
     ext = p.suffix.lower()
     if ext in ('.xlsx', '.docx'):
         with zipfile.ZipFile(p) as archive:
@@ -43,6 +86,7 @@ def extract(path, role, outdir, artifact_id, name):
             image_name = f'{artifact_id}-p{n+1}.png'
             rendered=page.render(scale=min(2, 1800/max(width,height))).to_pil().convert('RGB')
             rendered.save(out/image_name)
+            if role=='dieline':doc['structuralEdges'] += [dict(page=n+1,**edge) for edge in detect_structural_edges(rendered)]
             codes, scan_warning=scan_codes(rendered)
             tp = page.get_textpage(); text = tp.get_text_range().replace('\x00','')
             if len(text) > 100_000: raise ValueError('Too much text in one PDF page.')
@@ -77,7 +121,7 @@ def extract(path, role, outdir, artifact_id, name):
                                       method='pdf_text' if len(text.strip())>40 else 'vision_needed'))
             if scan_warning and scan_warning not in doc['warnings']: doc['warnings'].append(scan_warning)
             if len(text.strip())<40:
-                doc['warnings'].append(f'Dieline page {n+1} has little extractable face-label text; structural geometry needs manual review.' if role=='dieline' else f'Page {n+1} has little extractable text. Vision or manual review is needed.')
+                doc['warnings'].append(f'Dieline page {n+1} has little extractable face-label text; inspect the line candidates and map faces manually.' if role=='dieline' else f'Page {n+1} has little extractable text. Vision or manual review is needed.')
             tp.close(); page.close()
         pdf.close()
         doc['text']='\n\n'.join(x['text'] for x in doc['pages'])
@@ -90,7 +134,10 @@ def extract(path, role, outdir, artifact_id, name):
         codes, scan_warning=scan_codes(im)
         doc['pages']=[dict(number=1,width=width,height=height,unit='px',image=image_name,text='',codes=codes,method='vision_needed')]
         if scan_warning: doc['warnings'].append(scan_warning)
-        doc['warnings']=['Dieline image has no locally extracted face labels; map faces manually. No OCR text was inferred.' if role=='dieline' else 'Image input requires connected vision analysis or manual review; no local OCR text was inferred.']
+        if role=='dieline':
+            doc['structuralEdges']=[dict(page=1,**edge) for edge in detect_structural_edges(im)]
+            doc['warnings'].append('Dieline image has no locally extracted face labels. Inspect the rendered line candidates and assign artwork faces manually; no OCR text was inferred.')
+        else:doc['warnings'].append('Image input requires connected vision analysis or manual review; no local OCR text was inferred.')
     elif ext=='.xlsx':
         from openpyxl import load_workbook
         wb=load_workbook(p,read_only=True,data_only=True,keep_links=False)

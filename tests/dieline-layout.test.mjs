@@ -22,7 +22,7 @@ test('positioned dieline labels suggest editable face regions and boundary cues'
   assert.equal(result.zones.back.box[0], 0);
   assert.equal(result.zones.right.box[2], 1);
   assert.equal(result.folds.length, 3);
-  assert.match(result.note, /coarse layout suggestions/);
+  assert.match(result.note, /Positioned face labels suggest identities/);
   assert.equal(result.faces.filter(face => face.suggested).length, 4);
 });
 
@@ -31,8 +31,19 @@ test('unlabelled dielines receive face names only, never invented coordinates or
   assert.deepEqual(result.zones, {});
   assert.deepEqual(result.folds, []);
   assert.deepEqual(result.faces.map(face => face.face), ['front', 'back', 'left', 'right', 'bottom']);
-  assert.match(result.note, /no coordinates or folds have been guessed/);
+  assert.match(result.note, /no positioned face labels or clear long straight lines were found/i);
   assert.equal(packageType('bottle_label').faces.includes('top'), false);
+});
+
+test('long line candidates from unlabeled raster dielines show unassigned regions and boundary cues', () => {
+  const result = suggestDielineMapping({ structuralEdges: [
+    ...[.03, .30, .50, .73, .97].map(position => ({ page: 1, axis: 'vertical', position, extent: [.05, .95] })),
+    ...[.05, .95].map(position => ({ page: 1, axis: 'horizontal', position, extent: [.03, .97] })),
+  ] }, 'carton');
+  assert.equal(result.zones.front, undefined, 'line geometry does not invent face identities');
+  assert.equal(result.folds.length, 7);
+  assert.equal(result.candidateRegions.length, 4);
+  assert.match(result.note, /unlabelled regions were found/);
 });
 
 test('package types expose the expected reviewer-mappable faces and terminology', () => {
@@ -57,7 +68,28 @@ test('dieline mapper requires an artwork front crop before reviewer confirmation
   assert.match(html, /Copy face regions to artwork map/);
   assert.match(html, /name="packageType"/);
   assert.match(html, /data-package-confirm[^>]*disabled/);
-  assert.match(html, /coarse layout suggestions/);
+  assert.match(html, /Line style alone cannot distinguish cut from crease/);
+});
+
+test('unlabeled structural edges render as candidates without assigning face names', () => {
+  const review = { ...{
+    id: 'custom-review', options: { packageType: 'carton', panelZones: {} }, findings: [],
+    documents: [
+      { role: 'artwork', pages: [{ number: 1, width: 1200, height: 800, image: 'art.png' }] },
+      { role: 'dieline', pages: [{ number: 1, width: 1200, height: 800, image: 'die.png' }], panelLabels: [], structuralEdges: [
+        { page: 1, axis: 'vertical', position: .25, extent: [.1, .9] },
+        { page: 1, axis: 'vertical', position: .5, extent: [.1, .9] },
+        { page: 1, axis: 'vertical', position: .75, extent: [.1, .9] },
+        { page: 1, axis: 'horizontal', position: .1, extent: [.2, .8] },
+        { page: 1, axis: 'horizontal', position: .9, extent: [.2, .8] },
+      ] },
+    ],
+  } };
+  const html = panelZoneMapper(review);
+  assert.match(html, /Unlabelled region 1/);
+  assert.match(html, /dieline-fold vertical candidate-edge/);
+  assert.match(html, /assign faces manually/);
+  assert.doesNotMatch(html, /Mapped face Front/);
 });
 
 test('3D package preview stays hidden until confirmation, then uses the selected package form', () => {
@@ -103,4 +135,18 @@ test('each supported confirmed package type renders its own illustrative form', 
     assert.match(html, new RegExp(`${title} PREVIEW`));
     assert.match(html, /Mapped face Front/);
   }
+});
+
+test('custom pouch proportions respond to the mapped artwork crop', () => {
+  const render = front => workbenchArtwork({
+    id: 'custom-pouch', options: { packageType: 'pouch', packageMappingConfirmed: true, panelZones: { front } },
+    documents: [
+      { role: 'artwork', name: 'artwork.pdf', pages: [{ number: 1, width: 1200, height: 800, unit: 'pt', image: 'art.png' }] },
+      dieline,
+    ], findings: [],
+  }, null, { mode: '3d' });
+  const tall = render({ page: 1, box: [.1, .1, .4, .9] });
+  const wide = render({ page: 1, box: [.1, .1, .9, .45] });
+  const extractDimensions = html => html.match(/data-carton-width="(\d+)" data-carton-height="(\d+)" data-carton-depth="(\d+)"/).slice(1).map(Number);
+  assert.notDeepEqual(extractDimensions(tall), extractDimensions(wide));
 });

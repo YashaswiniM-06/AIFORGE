@@ -35,7 +35,7 @@ flowchart TD
 | `scripts/verify-report.mjs` | Offline integrity check for exported HTML or JSON proofs |
 | `.packproof/` | Local records, original inputs, rendered pages and cached responses; excluded from submission. Hosted deployments point this data directory at a persistent disk. |
 
-The prepress HUD derives millimeter coordinates from extracted PDF page dimensions. Raster-only inputs use normalized coordinates because print scale is unknown. Before showing “SHA-256 verified,” the browser fetches the locally stored original file and compares its digest with the extraction record. A PDF dieline can contribute positioned face-label hints and coarse editable region/fold-boundary suggestions; these are not detected cut/crease geometry. Carton, pouch, bottle-label and sleeve contexts remain illustrative previews, not structural CAD models.
+The prepress HUD derives millimeter coordinates from extracted PDF page dimensions. Raster-only inputs use normalized coordinates because print scale is unknown. Before showing “SHA-256 verified,” the browser fetches the locally stored original file and compares its digest with the extraction record. A PDF or image dieline can contribute positioned face-label hints and long-line candidates; these are not classified cut/crease paths or structural CAD geometry. Carton, pouch, bottle-label and sleeve contexts remain illustrative previews.
 
 ## Result semantics
 
