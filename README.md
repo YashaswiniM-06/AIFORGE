@@ -199,7 +199,7 @@ PackSignal has **zero third-party NPM runtime dependencies** — it runs nativel
 
 ```bash
 # 1. Clone repository and install dependencies
-git clone https://github.com/vamshichethan29/PackSignal.git
+git clone https://github.com/YashaswiniM-06/PackSignal.git
 cd PackSignal
 npm install
 
