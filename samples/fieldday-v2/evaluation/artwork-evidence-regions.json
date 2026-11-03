@@ -1,0 +1,828 @@
+{
+  "fieldday-baseline": {
+    "page_size": [
+      1200,
+      860
+    ],
+    "coordinate_system": "top-left x,y,width,height; 1 SVG unit = 1 PDF point",
+    "panels": {
+      "front": [
+        40,
+        60,
+        470,
+        742
+      ],
+      "back": [
+        532,
+        60,
+        628,
+        742
+      ]
+    },
+    "text_regions": [
+      {
+        "id": "brand",
+        "panel": "front",
+        "text": "Fieldday",
+        "page": 1,
+        "bbox": [
+          157.35,
+          121.1,
+          235.31,
+          78.3
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "product",
+        "panel": "front",
+        "text": "Oat Drink",
+        "page": 1,
+        "bbox": [
+          187.23,
+          203.05,
+          175.54,
+          52.65
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "variant",
+        "panel": "front",
+        "text": "Original",
+        "page": 1,
+        "bbox": [
+          237.1,
+          261.9,
+          75.79,
+          29.7
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "claim",
+        "panel": "front",
+        "text": "Smooth & creamy",
+        "page": 1,
+        "bbox": [
+          177.23,
+          556.85,
+          195.55,
+          31.05
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "net_quantity",
+        "panel": "front",
+        "text": "1 L",
+        "page": 1,
+        "bbox": [
+          237.43,
+          622.4,
+          75.14,
+          70.2
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "ingredients",
+        "panel": "back",
+        "text": "Water, oats (12%), sunflower oil, sea salt.",
+        "page": 1,
+        "bbox": [
+          570,
+          228.15,
+          313.67,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "allergen",
+        "panel": "back",
+        "text": "Contains oats.",
+        "page": 1,
+        "bbox": [
+          570,
+          261.15,
+          117.13,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "nutrition_basis",
+        "panel": "back",
+        "text": "Per 100 mL",
+        "page": 1,
+        "bbox": [
+          1050.8,
+          311.35,
+          67.2,
+          17.55
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "energy",
+        "panel": "back",
+        "text": "196 kJ / 47 kcal",
+        "page": 1,
+        "bbox": [
+          1009.58,
+          338.25,
+          108.42,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fat",
+        "panel": "back",
+        "text": "1.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          363.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "saturates",
+        "panel": "back",
+        "text": "0.2 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          388.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "carbohydrate",
+        "panel": "back",
+        "text": "7.0 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          413.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "sugars",
+        "panel": "back",
+        "text": "3.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          438.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fibre",
+        "panel": "back",
+        "text": "0.7 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          463.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "protein",
+        "panel": "back",
+        "text": "1.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          488.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "salt",
+        "panel": "back",
+        "text": "0.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          513.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "storage",
+        "panel": "back",
+        "text": "Refrigerate after opening.",
+        "page": 1,
+        "bbox": [
+          570,
+          560.15,
+          206.87,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "manufacturer",
+        "panel": "back",
+        "text": "Northstar Foods (Fictional)",
+        "page": 1,
+        "bbox": [
+          570,
+          607.15,
+          218.18,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "contact",
+        "panel": "back",
+        "text": "hello@fieldday.example",
+        "page": 1,
+        "bbox": [
+          570,
+          634.2,
+          170.08,
+          21.6
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "recycling",
+        "panel": "back",
+        "text": "Carton recyclable where facilities exist.",
+        "page": 1,
+        "bbox": [
+          570,
+          672.2,
+          275.63,
+          21.6
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      }
+    ],
+    "complete_readable_fixture": true
+  },
+  "fieldday-v1": {
+    "page_size": [
+      1200,
+      860
+    ],
+    "coordinate_system": "top-left x,y,width,height; 1 SVG unit = 1 PDF point",
+    "panels": {
+      "front": [
+        40,
+        60,
+        470,
+        742
+      ],
+      "back": [
+        532,
+        60,
+        628,
+        742
+      ]
+    },
+    "text_regions": [
+      {
+        "id": "brand",
+        "panel": "front",
+        "text": "Fieldday",
+        "page": 1,
+        "bbox": [
+          157.35,
+          121.1,
+          235.31,
+          78.3
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "product",
+        "panel": "front",
+        "text": "Oat Drink",
+        "page": 1,
+        "bbox": [
+          187.23,
+          203.05,
+          175.54,
+          52.65
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "variant",
+        "panel": "front",
+        "text": "Original",
+        "page": 1,
+        "bbox": [
+          237.1,
+          261.9,
+          75.79,
+          29.7
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "claim",
+        "panel": "front",
+        "text": "No Added Sugar",
+        "page": 1,
+        "bbox": [
+          184.91,
+          556.85,
+          180.18,
+          31.05
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "net_quantity",
+        "panel": "front",
+        "text": "750 mL",
+        "page": 1,
+        "bbox": [
+          185.4,
+          622.4,
+          179.19,
+          70.2
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "ingredients",
+        "panel": "back",
+        "text": "Water, oats (12%), sunflower oil, sea salt.",
+        "page": 1,
+        "bbox": [
+          570,
+          228.15,
+          313.67,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "allergen",
+        "panel": "back",
+        "text": "Contains oats.",
+        "page": 1,
+        "bbox": [
+          570,
+          261.15,
+          117.13,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "nutrition_basis",
+        "panel": "back",
+        "text": "Per 100 mL",
+        "page": 1,
+        "bbox": [
+          1050.8,
+          311.35,
+          67.2,
+          17.55
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "energy",
+        "panel": "back",
+        "text": "196 kJ / 47 kcal",
+        "page": 1,
+        "bbox": [
+          1009.58,
+          338.25,
+          108.42,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fat",
+        "panel": "back",
+        "text": "1.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          363.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "saturates",
+        "panel": "back",
+        "text": "0.2 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          388.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "carbohydrate",
+        "panel": "back",
+        "text": "7.0 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          413.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "sugars",
+        "panel": "back",
+        "text": "3.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          438.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fibre",
+        "panel": "back",
+        "text": "0.7 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          463.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "protein",
+        "panel": "back",
+        "text": "1.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          488.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "salt",
+        "panel": "back",
+        "text": "0.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          513.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "manufacturer",
+        "panel": "back",
+        "text": "Northstar Foods (Fictional)",
+        "page": 1,
+        "bbox": [
+          570,
+          607.15,
+          218.18,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "contact",
+        "panel": "back",
+        "text": "hello@fieldday.example",
+        "page": 1,
+        "bbox": [
+          570,
+          634.2,
+          170.08,
+          21.6
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "recycling",
+        "panel": "back",
+        "text": "Carton recyclable where facilities exist.",
+        "page": 1,
+        "bbox": [
+          570,
+          672.2,
+          275.63,
+          21.6
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      }
+    ],
+    "complete_readable_fixture": true
+  },
+  "fieldday-v2": {
+    "page_size": [
+      1200,
+      860
+    ],
+    "coordinate_system": "top-left x,y,width,height; 1 SVG unit = 1 PDF point",
+    "panels": {
+      "front": [
+        40,
+        60,
+        470,
+        742
+      ],
+      "back": [
+        532,
+        60,
+        628,
+        742
+      ]
+    },
+    "text_regions": [
+      {
+        "id": "brand",
+        "panel": "front",
+        "text": "Fieldday",
+        "page": 1,
+        "bbox": [
+          157.35,
+          121.1,
+          235.31,
+          78.3
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "product",
+        "panel": "front",
+        "text": "Oat Drink",
+        "page": 1,
+        "bbox": [
+          187.23,
+          203.05,
+          175.54,
+          52.65
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "variant",
+        "panel": "front",
+        "text": "Original",
+        "page": 1,
+        "bbox": [
+          237.1,
+          261.9,
+          75.79,
+          29.7
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "claim",
+        "panel": "front",
+        "text": "No Added Sugar",
+        "page": 1,
+        "bbox": [
+          184.91,
+          556.85,
+          180.18,
+          31.05
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "net_quantity",
+        "panel": "front",
+        "text": "1 L",
+        "page": 1,
+        "bbox": [
+          237.43,
+          622.4,
+          75.14,
+          70.2
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "ingredients",
+        "panel": "back",
+        "text": "Water, oats (12%), sunflower oil, sea salt.",
+        "page": 1,
+        "bbox": [
+          570,
+          228.15,
+          313.67,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "allergen",
+        "panel": "back",
+        "text": "Contains oats.",
+        "page": 1,
+        "bbox": [
+          570,
+          261.15,
+          117.13,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "nutrition_basis",
+        "panel": "back",
+        "text": "Per 100 mL",
+        "page": 1,
+        "bbox": [
+          1050.8,
+          311.35,
+          67.2,
+          17.55
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "energy",
+        "panel": "back",
+        "text": "196 kJ / 47 kcal",
+        "page": 1,
+        "bbox": [
+          1009.58,
+          338.25,
+          108.42,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fat",
+        "panel": "back",
+        "text": "1.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          363.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "saturates",
+        "panel": "back",
+        "text": "0.2 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          388.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "carbohydrate",
+        "panel": "back",
+        "text": "7.0 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          413.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "sugars",
+        "panel": "back",
+        "text": "3.5 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          438.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "fibre",
+        "panel": "back",
+        "text": "0.7 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          463.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "protein",
+        "panel": "back",
+        "text": "1.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          488.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "salt",
+        "panel": "back",
+        "text": "0.1 g",
+        "page": 1,
+        "bbox": [
+          1084.64,
+          513.25,
+          33.36,
+          20.25
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "storage",
+        "panel": "back",
+        "text": "Refrigerate after opening.",
+        "page": 1,
+        "bbox": [
+          570,
+          560.15,
+          206.87,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "manufacturer",
+        "panel": "back",
+        "text": "Northstar Foods (Fictional)",
+        "page": 1,
+        "bbox": [
+          570,
+          607.15,
+          218.18,
+          22.95
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      },
+      {
+        "id": "recycling",
+        "panel": "back",
+        "text": "Carton recyclable where facilities exist.",
+        "page": 1,
+        "bbox": [
+          570,
+          672.2,
+          275.63,
+          21.6
+        ],
+        "coordinate_system": "top-left x,y,width,height; SVG units = PDF points; page 1200x860"
+      }
+    ],
+    "complete_readable_fixture": true
+  }
+}

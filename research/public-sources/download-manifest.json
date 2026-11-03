@@ -1,0 +1,28 @@
+[
+  {
+    "file": "fssai-labelling-display-compendium-viii-2025-09-09.pdf",
+    "url": "https://www.fssai.gov.in/upload/uploadfiles/files/Comp_Labelling%20Display_Version%20VIII_09_09_2025.pdf",
+    "retrieval_date": "2026-10-15",
+    "publisher": "Food Safety and Standards Authority of India",
+    "copyright_policy": "https://www.fssai.gov.in/website-policies",
+    "reuse_note": "FSSAI policy permits accurate reproduction with prominent source acknowledgment, excluding third-party materials. No endorsement.",
+    "status": "downloaded",
+    "final_url": "https://www.fssai.gov.in/upload/uploadfiles/files/Comp_Labelling%20Display_Version%20VIII_09_09_2025.pdf",
+    "content_type": "application/pdf",
+    "bytes": 1378187,
+    "sha256": "0d0af8f6e6a6f4b96618624bed5089400f2f268eb4c46e826ebee6aaead7a71e"
+  },
+  {
+    "file": "fssai-labelling-display-amendment-2026-03-24.pdf",
+    "url": "https://www.fssai.gov.in/upload/notifications/2026/04/69cca2b3f3ce9Notification%20dt%2024.03.2026_NRC.pdf",
+    "retrieval_date": "2026-10-15",
+    "publisher": "Food Safety and Standards Authority of India",
+    "copyright_policy": "https://www.fssai.gov.in/website-policies",
+    "reuse_note": "FSSAI policy permits accurate reproduction with prominent source acknowledgment, excluding third-party materials. No endorsement.",
+    "status": "not_saved_response_is_not_pdf",
+    "reason": "Official URL returned text/html, not a PDF; response was not saved.",
+    "final_url": "https://www.fssai.gov.in/upload/notifications/2026/04/69cca2b3f3ce9Notification%20dt%2024.03.2026_NRC.pdf",
+    "content_type": "text/html; charset=UTF-8",
+    "bytes": 3221
+  }
+]

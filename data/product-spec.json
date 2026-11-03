@@ -1,0 +1,16 @@
+{
+  "demoOnly": true,
+  "source": "data/product-spec.json",
+  "approvedVersion": "3.1",
+  "product": {
+    "name": "Fieldday Oat Drink",
+    "variant": "Original",
+    "sku": "FD-OAT-1042",
+    "netQuantity": {
+      "millilitres": 1000,
+      "display": "1 L"
+    },
+    "ingredients": "Water, oats (12%), sunflower oil, sea salt.",
+    "allergenStatement": "Contains oats."
+  }
+}

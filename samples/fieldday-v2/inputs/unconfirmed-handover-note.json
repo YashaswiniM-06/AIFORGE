@@ -1,0 +1,19 @@
+{
+  "document_id": "FD-HANDOVER-009",
+  "version": "0.9",
+  "synthetic": true,
+  "status": "UNCONFIRMED_HANDOVER_NOTE",
+  "date": "2026-10-15",
+  "sku": "FD-OAT-1042",
+  "proposed_net_quantity": {
+    "value": 750,
+    "unit": "mL"
+  },
+  "note": "Proposed production pack: 750 mL. Approval has not been recorded. Please confirm whether the proposal was accepted before using it.",
+  "conflicts_with": {
+    "document_id": "FD-SPEC-031",
+    "field": "net_quantity",
+    "value": "1 L"
+  },
+  "authority_note": "This file deliberately creates an unresolved source conflict. A newer date does not prove a change was approved."
+}

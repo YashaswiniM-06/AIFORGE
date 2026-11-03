@@ -1,0 +1,30 @@
+{
+  "document_id": "CASCADE-SPEC-2026",
+  "version": "2.0",
+  "status": "APPROVED",
+  "product": {
+    "brand": "Cascade Pure",
+    "name": "Organic Oat Milk",
+    "variant": "Barista Edition",
+    "net_quantity": {
+      "value": 1000,
+      "unit": "mL",
+      "preferred_display": "1 L"
+    },
+    "ingredients": "Water, Organic Oats (14%), Rapeseed Oil, Sea Salt.",
+    "storage_statement": "Shake well before opening. Refrigerate after opening and consume within 5 days.",
+    "manufacturer": "Cascade Beverage Lab, Seattle, WA 98101",
+    "barcode": "7350083281012"
+  },
+  "nutrition": {
+    "basis": {
+      "value": 250,
+      "unit": "mL"
+    },
+    "energy_kcal": 43,
+    "fat_g": 1.2,
+    "sugars_g": 3.8,
+    "protein_g": 0.9,
+    "salt_g": 0.1
+  }
+}

@@ -1,0 +1,392 @@
+/**
+ * @file public/ask-about-this.css
+ * Styles for the contextual "Ask about this" Grounded Assistant Drawer,
+ * Toggle Button (Closed by default), and Confirmation Modal.
+ * Cohesive dark forest / emerald palette matching PackSignal workspace.
+ */
+
+/* Floating Toggle Button */
+.ask-drawer-toggle-btn {
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+  color: #ffffff;
+  border: 1px solid #38bdf8;
+  border-radius: 9999px;
+  padding: 0.75rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  z-index: 900;
+  transition: all 0.2s ease;
+}
+
+.ask-drawer-toggle-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px rgba(2, 132, 199, 0.6);
+}
+
+/* Side Drawer (CLOSED BY DEFAULT, uses transform so zero horizontal layout overflow) */
+.ask-drawer-panel {
+  position: fixed;
+  top: 0;
+  right: 0;
+  transform: translateX(100%);
+  width: min(420px, 92vw);
+  height: 100vh;
+  background: #11241c;
+  border-left: 1px solid #284738;
+  box-shadow: -8px 0 32px rgba(0, 0, 0, 0.6);
+  display: flex;
+  flex-direction: column;
+  z-index: 1000;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  color: #e2ece0;
+}
+
+.ask-drawer-panel.open {
+  transform: translateX(0);
+}
+
+.ask-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem;
+  border-bottom: 1px solid #244837;
+  background: #152d23;
+}
+
+.header-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-title h3 {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #e6f3eb;
+  margin: 0;
+}
+
+.btn-close-drawer {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 4px;
+}
+
+.btn-close-drawer:hover {
+  color: #f1f5f9;
+}
+
+.ask-drawer-context-notice {
+  font-size: 0.75rem;
+  color: #7dd3fc;
+  background: #0d2118;
+  border-bottom: 1px solid #1e3a2b;
+  padding: 0.5rem 1.25rem;
+  line-height: 1.4;
+}
+
+.ask-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.ask-prompts-tray {
+  background: #152d23;
+  border: 1px solid #284738;
+  border-radius: 8px;
+  padding: 0.75rem;
+}
+
+.tray-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #86efac;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.05em;
+}
+
+.quick-ask-chip {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font-size: 0.78rem;
+  color: #e2ece0;
+  background: #1c3b2f;
+  border: 1px solid #2e5944;
+  border-radius: 6px;
+  padding: 0.45rem 0.65rem;
+  margin-bottom: 0.35rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.quick-ask-chip:hover {
+  background: #244b3c;
+  border-color: #34d399;
+  color: #ffffff;
+}
+
+.ask-chat-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.system-intro-msg {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  line-height: 1.4;
+  text-align: center;
+  padding: 0.5rem;
+}
+
+.chat-bubble {
+  max-width: 85%;
+  padding: 0.75rem 0.9rem;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.chat-bubble.user {
+  align-self: flex-end;
+  background: #0284c7;
+  color: #ffffff;
+}
+
+.chat-bubble.ai {
+  align-self: flex-start;
+  background: #183328;
+  color: #e2ece0;
+  border: 1px solid #2a523e;
+}
+
+.chat-bubble.ai.loading {
+  font-style: italic;
+  color: #94a3b8;
+}
+
+.ai-sources-tray {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px dashed #2e5944;
+  font-size: 0.75rem;
+}
+
+.ai-sources-tray .lbl {
+  font-weight: 700;
+  color: #86efac;
+}
+
+.source-citation-badge {
+  display: inline-block;
+  background: #10261d;
+  border: 1px solid #2b543f;
+  border-radius: 4px;
+  padding: 0.15rem 0.4rem;
+  margin-top: 0.25rem;
+  font-size: 0.7rem;
+  color: #cbd5e1;
+}
+
+.confirm-fact-prompt-box {
+  margin-top: 0.75rem;
+  padding: 0.6rem;
+  background: #0d261b;
+  border: 1px solid #166534;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.prompt-text {
+  font-size: 0.75rem;
+  color: #86efac;
+  font-weight: 600;
+}
+
+.btn-confirm-fact {
+  align-self: flex-start;
+  background: #059669;
+  color: #ffffff;
+  border: none;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.35rem 0.7rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.btn-confirm-fact:hover {
+  background: #10b981;
+}
+
+.ask-drawer-footer {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #244837;
+  background: #152d23;
+}
+
+.ask-form {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.ask-input {
+  flex: 1;
+  padding: 0.6rem 0.75rem;
+  background: #0e1e17;
+  border: 1px solid #2b543f;
+  color: #f1f8f3;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.ask-input:focus {
+  outline: none;
+  border-color: #34d399;
+}
+
+.ask-submit-btn {
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 0 1rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.ask-submit-btn:hover {
+  background: #10b981;
+}
+
+/* Modal Confirmation */
+.confirm-fact-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(8, 18, 14, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.modal-card {
+  width: 90%;
+  max-width: 500px;
+  background: #11241c;
+  border: 1px solid #284738;
+  color: #e2ece0;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+  overflow: hidden;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  background: #152d23;
+  border-bottom: 1px solid #244837;
+}
+
+.modal-header h4 {
+  margin: 0;
+  font-size: 1rem;
+  color: #e6f3eb;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  cursor: pointer;
+  color: #94a3b8;
+}
+
+.modal-close:hover {
+  color: #fff;
+}
+
+.modal-body {
+  padding: 1.25rem;
+}
+
+.modal-desc {
+  font-size: 0.85rem;
+  color: #94a3b8;
+  margin: 0 0 1rem 0;
+}
+
+.fact-preview-box {
+  background: #0e1e17;
+  border: 1px solid #2b543f;
+  color: #e2ece0;
+  border-radius: 6px;
+  padding: 0.75rem;
+  font-size: 0.82rem;
+  margin-bottom: 1rem;
+}
+
+.form-group {
+  margin-bottom: 0.85rem;
+}
+
+.form-group label {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #86efac;
+  margin-bottom: 0.25rem;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.5rem;
+  background: #0e1e17;
+  border: 1px solid #2b543f;
+  color: #f1f8f3;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  box-sizing: border-box;
+}
+
+.form-control:focus {
+  outline: none;
+  border-color: #34d399;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid #244837;
+  background: #152d23;
+}

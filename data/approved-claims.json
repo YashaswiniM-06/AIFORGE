@@ -1,0 +1,7 @@
+{
+  "demoOnly": true,
+  "source": "data/approved-claims.json",
+  "approvedVersion": "2.0",
+  "approvedClaims": [],
+  "note": "The sample register has no approved claim entries. An unlisted claim is sent to a human reviewer; this is not a determination that the claim is invalid."
+}

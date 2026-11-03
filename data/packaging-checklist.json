@@ -1,0 +1,134 @@
+{
+  "demoOnly": true,
+  "source": "data/packaging-checklist.json",
+  "title": "Northstar beverage packaging checklist",
+  "version": "1.2",
+  "scope": "Fictional internal checklist for the Fieldday sample review. Not a regulatory standard.",
+  "requirements": [
+    {
+      "id": "identity",
+      "title": "Brand and product identity",
+      "type": "all_phrases_present",
+      "phrases": [
+        "fieldday",
+        "oat",
+        "drink"
+      ],
+      "result": "pass",
+      "rule": "Brand and product identity must be visible on the front panel.",
+      "expected": "Fieldday · Oat Drink",
+      "observed": "Fieldday · Oat Drink",
+      "sourcePath": "$.requirements[0]"
+    },
+    {
+      "id": "ingredients",
+      "title": "Ingredient declaration matches spec",
+      "type": "phrase_present",
+      "phrase": "Water, oats (12%), sunflower oil, sea salt.",
+      "result": "pass",
+      "rule": "The artwork ingredient declaration must match the approved product specification.",
+      "expected": "Water, oats (12%), sunflower oil, sea salt.",
+      "observed": "Water, oats (12%), sunflower oil, sea salt.",
+      "sourcePath": "$.requirements[1]"
+    },
+    {
+      "id": "allergens",
+      "title": "Allergen statement matches spec",
+      "type": "phrase_present",
+      "phrase": "Contains oats.",
+      "result": "pass",
+      "rule": "The supplied allergen statement must be present on the pack.",
+      "expected": "Contains oats.",
+      "observed": "Contains oats.",
+      "sourcePath": "$.requirements[2]"
+    },
+    {
+      "id": "energy",
+      "title": "Energy value present",
+      "type": "phrase_present",
+      "phrase": "196 kJ / 47 kcal",
+      "result": "pass",
+      "rule": "The sample nutrition panel must show its approved energy value.",
+      "expected": "196 kJ / 47 kcal per 100 mL",
+      "observed": "196 kJ / 47 kcal per 100 mL",
+      "sourcePath": "$.requirements[3]"
+    },
+    {
+      "id": "fat",
+      "title": "Fat value present",
+      "type": "phrase_present",
+      "phrase": "Fat 1.5 g",
+      "result": "pass",
+      "rule": "The sample nutrition panel must show its approved fat value.",
+      "expected": "Fat 1.5 g per 100 mL",
+      "observed": "Fat 1.5 g per 100 mL",
+      "sourcePath": "$.requirements[4]"
+    },
+    {
+      "id": "saturates",
+      "title": "Saturated fat value present",
+      "type": "phrase_present",
+      "phrase": "of which saturates 0.2 g",
+      "result": "pass",
+      "rule": "The sample nutrition panel must show its approved saturated fat value.",
+      "expected": "Saturates 0.2 g per 100 mL",
+      "observed": "Saturates 0.2 g per 100 mL",
+      "sourcePath": "$.requirements[5]"
+    },
+    {
+      "id": "protein",
+      "title": "Protein value present",
+      "type": "phrase_present",
+      "phrase": "Protein 1.1 g",
+      "result": "pass",
+      "rule": "The sample nutrition panel must show its approved protein value.",
+      "expected": "Protein 1.1 g per 100 mL",
+      "observed": "Protein 1.1 g per 100 mL",
+      "sourcePath": "$.requirements[6]"
+    },
+    {
+      "id": "business-details",
+      "title": "Manufacturer and contact details present",
+      "type": "all_phrases_present",
+      "phrases": [
+        "NORTHSTAR FOODS",
+        "hello@fieldday.example"
+      ],
+      "result": "pass",
+      "rule": "The sample artwork must show the manufacturer name and customer-care contact.",
+      "expected": "Northstar Foods · hello@fieldday.example",
+      "observed": "Northstar Foods · hello@fieldday.example",
+      "sourcePath": "$.requirements[7]"
+    },
+    {
+      "id": "recycling-copy",
+      "title": "Recycling qualifier present",
+      "type": "phrase_present",
+      "phrase": "carton recyclable where facilities exist",
+      "result": "pass",
+      "rule": "The sample recycling message must retain its local-facilities qualifier.",
+      "expected": "Carton recyclable where facilities exist",
+      "observed": "Carton recyclable where facilities exist",
+      "sourcePath": "$.requirements[8]"
+    },
+    {
+      "id": "net-quantity",
+      "title": "Net quantity matches product spec",
+      "type": "net_quantity_match",
+      "result": "issue",
+      "rule": "The net quantity shown on the retail artwork must match the approved product specification, including the value and unit.",
+      "expected": "1 L (1000 mL)",
+      "sourcePath": "$.requirements[9]"
+    },
+    {
+      "id": "storage-statement",
+      "title": "Storage statement appears on pack",
+      "type": "phrase_present",
+      "phrase": "Refrigerate after opening.",
+      "result": "issue",
+      "rule": "After-opening storage statement: ‘Refrigerate after opening.’ Include on each retail package.",
+      "expected": "Refrigerate after opening.",
+      "sourcePath": "$.requirements[10]"
+    }
+  ]
+}

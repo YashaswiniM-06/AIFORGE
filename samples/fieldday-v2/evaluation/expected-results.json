@@ -1,0 +1,438 @@
+{
+  "synthetic": true,
+  "purpose": "Evaluation-only answer key. Never give this file to the model or upload it as a review input.",
+  "status_vocabulary": [
+    "matches",
+    "issue",
+    "needs_human_review",
+    "unable_to_verify"
+  ],
+  "scenario_prerequisites": "Product specification FD-SPEC-031 v3.1 is the confirmed source. All artwork panels are readable. Optional conflicting handover note is excluded unless explicitly using conflict scenario.",
+  "scenarios": {
+    "fieldday-baseline": {
+      "artwork": "artwork/fieldday-baseline.pdf",
+      "counts": {
+        "matches": 12,
+        "issue": 0,
+        "needs_human_review": 0,
+        "unable_to_verify": 0
+      },
+      "checks": [
+        {
+          "rule_id": "R01",
+          "title": "Brand and product identity",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "brand",
+            "product"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R02",
+          "title": "Variant",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "variant"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R03",
+          "title": "Net quantity",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "net_quantity"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R04",
+          "title": "Ingredients",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "ingredients"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R05",
+          "title": "Allergen wording",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "allergen"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R06",
+          "title": "Energy and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "energy",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R07",
+          "title": "Fat and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "fat",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R08",
+          "title": "Protein and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "protein",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R09",
+          "title": "Manufacturer and contact",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "manufacturer",
+            "contact"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R10",
+          "title": "Recycling qualifier",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "recycling"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R11",
+          "title": "After-opening storage",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "storage"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R12",
+          "title": "Claim approval evidence",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "claim"
+          ],
+          "absence_search_scope": null
+        }
+      ]
+    },
+    "fieldday-v1": {
+      "artwork": "artwork/fieldday-v1.pdf",
+      "counts": {
+        "matches": 9,
+        "issue": 2,
+        "needs_human_review": 1,
+        "unable_to_verify": 0
+      },
+      "checks": [
+        {
+          "rule_id": "R01",
+          "title": "Brand and product identity",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "brand",
+            "product"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R02",
+          "title": "Variant",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "variant"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R03",
+          "title": "Net quantity",
+          "expected_status": "issue",
+          "rationale": "Observed 750 mL; confirmed expected 1000 mL. Numeric quantity mismatch.",
+          "evidence_region_ids": [
+            "net_quantity"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R04",
+          "title": "Ingredients",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "ingredients"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R05",
+          "title": "Allergen wording",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "allergen"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R06",
+          "title": "Energy and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "energy",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R07",
+          "title": "Fat and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "fat",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R08",
+          "title": "Protein and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "protein",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R09",
+          "title": "Manufacturer and contact",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "manufacturer",
+            "contact"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R10",
+          "title": "Recycling qualifier",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "recycling"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R11",
+          "title": "After-opening storage",
+          "expected_status": "issue",
+          "rationale": "Required storage copy is absent from this complete, readable synthetic artwork.",
+          "evidence_region_ids": [],
+          "absence_search_scope": "Both complete artwork panels"
+        },
+        {
+          "rule_id": "R12",
+          "title": "Claim approval evidence",
+          "expected_status": "needs_human_review",
+          "rationale": "No Added Sugar has no approval evidence in the supplied claims register. No judgment of claim legality or truth follows.",
+          "evidence_region_ids": [
+            "claim"
+          ],
+          "absence_search_scope": null
+        }
+      ]
+    },
+    "fieldday-v2": {
+      "artwork": "artwork/fieldday-v2.pdf",
+      "counts": {
+        "matches": 10,
+        "issue": 1,
+        "needs_human_review": 1,
+        "unable_to_verify": 0
+      },
+      "checks": [
+        {
+          "rule_id": "R01",
+          "title": "Brand and product identity",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "brand",
+            "product"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R02",
+          "title": "Variant",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "variant"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R03",
+          "title": "Net quantity",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "net_quantity"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R04",
+          "title": "Ingredients",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "ingredients"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R05",
+          "title": "Allergen wording",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "allergen"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R06",
+          "title": "Energy and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "energy",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R07",
+          "title": "Fat and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "fat",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R08",
+          "title": "Protein and basis",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "protein",
+            "nutrition_basis"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R09",
+          "title": "Manufacturer and contact",
+          "expected_status": "issue",
+          "rationale": "Manufacturer name remains; approved customer-care email is absent from the complete, readable artwork.",
+          "evidence_region_ids": [
+            "manufacturer"
+          ],
+          "absence_search_scope": "Both complete artwork panels"
+        },
+        {
+          "rule_id": "R10",
+          "title": "Recycling qualifier",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "recycling"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R11",
+          "title": "After-opening storage",
+          "expected_status": "matches",
+          "rationale": "Matches the supplied fictional requirement.",
+          "evidence_region_ids": [
+            "storage"
+          ],
+          "absence_search_scope": null
+        },
+        {
+          "rule_id": "R12",
+          "title": "Claim approval evidence",
+          "expected_status": "needs_human_review",
+          "rationale": "No Added Sugar has no approval evidence in the supplied claims register. No judgment of claim legality or truth follows.",
+          "evidence_region_ids": [
+            "claim"
+          ],
+          "absence_search_scope": null
+        }
+      ]
+    }
+  },
+  "conflict_scenario": {
+    "additional_input": "inputs/unconfirmed-handover-note.pdf",
+    "expected": "Surface both 1 L approved-scenario specification and 750 mL unconfirmed note, request authority resolution, retain citations. Quantity check cannot definitively pass/fail until the source-of-truth decision is recorded. Other independent checks can continue.",
+    "do_not_do": "Automatically accept the later-dated file as approved."
+  },
+  "revision_expected": {
+    "from": "fieldday-v1",
+    "to": "fieldday-v2",
+    "resolved": [
+      "R03",
+      "R11"
+    ],
+    "persistent_review": [
+      "R12"
+    ],
+    "new_issue": [
+      "R09"
+    ],
+    "note": "Contact omission is a fresh regression, not a failed fix of quantity/storage."
+  }
+}

@@ -1,0 +1,41 @@
+services:
+  - type: web
+    name: packsignal
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: PORT
+        value: "4173"
+      - key: PACKPROOF_DATA_DIR
+        value: /data
+      - key: PACKPROOF_REQUIRE_PERSISTENT_STORAGE
+        value: "false"
+      - key: PACKPROOF_REQUIRE_AUTH
+        value: "false"
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY_2
+        sync: false
+      - key: GEMINI_API_KEY_3
+        sync: false
+      - key: GEMINI_API_KEY_4
+        sync: false
+      - key: GEMINI_API_KEY_5
+        sync: false
+      - key: GEMINI_API_KEY_6
+        sync: false
+      - key: OPENFDA_API_KEY
+        sync: false
+      - key: USDA_FDC_API_KEY
+        sync: false
+      - key: OPEN_FOOD_FACTS_BASE_URL
+        value: "https://world.openfoodfacts.org"
+      - key: OPEN_FOOD_FACTS_USER_AGENT
+        value: "PackSignal/1.0 (packsignal-review@packsignal.org)"
+
